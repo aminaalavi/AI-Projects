@@ -3,10 +3,10 @@
 Welcome to my AI project portfolio! Here, you'll find a collection of my AI experiments specifically with Gen AI and agents
 
 ## Projects
-- [Project 1: Image Classifier](projects/Project1/README.md)
+- [Project 1: AG2 CaptainAgent](AG2_CaptainAgent/README.md)
 
 ## Getting Started
-Each project contains a `README.md` file with setup instructions, dataset sources, and usage details.
+Each project contains a `README.md` file with description, setup instructions, dataset sources, and usage details.
 
 ## Technologies Used
 - Python 🐍
