@@ -12,7 +12,10 @@ In this example, I’ve used **AG2’s (formerly AutoGen) CaptainAgent** to auto
 🔹 **Python Expert** – Handles implementation and debugging  
 
 If you have a better approach or new ideas, let’s connect!  
-📌 **LinkedIn:** [Amina Alavi](https://www.linkedin.com/in/amina-alavi/)  
+📌 **LinkedIn:** [Amina Alavi](https://www.linkedin.com/in/amina-alavi/)
+📌 **Github:** [Link to the Code](https://github.com/aminaalavi/AI-Projects/blob/main/AG2_CaptainAgent/AG2_(Autogen)_CaptainAgent.ipynb
+)
+
 
 **Huge thanks to the AG2 community and their robust GitHub repo** ([AG2 GitHub](https://github.com/ag2ai/ag2/tree/main)) for pushing the boundaries of AI!  
 
