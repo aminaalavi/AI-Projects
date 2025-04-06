@@ -1,4 +1,4 @@
-**AI Project: Agentic Investment Research Swarm (AG2)**
+**AI Project: Agentic Awarm - Investment Research(AG2)**
 
 Building AI powered agents that think like an analyst, straight from Google Colab!
 
