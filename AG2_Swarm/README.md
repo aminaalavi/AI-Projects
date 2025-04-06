@@ -15,6 +15,8 @@ Built fully in Google Colab for easy replication. Just plug in your API key and 
 The functions in this notebook  are simplified examples meant to illustrate how each agent interacts with external data. In real world, these functions would be significantly more complex
 
 Got other use cases for multi-agent AI swarms? Let’s connect and brainstorm!
-Thanks to the AG2 team and community for making this wild LLM orchestration possible 
+📌 **LinkedIn:** [Amina Alavi](https://www.linkedin.com/in/amina-alavi/)
+
+**Huge thanks to the AG2 community and their robust GitHub repo** ([AG2 GitHub](https://github.com/ag2ai/ag2/tree/main)) for pushing the boundaries of AI! 
 
 #AI #AG2 #AutoGen #SwarmAgents #GPT4o #FinanceAI #Colab #InvestmentTools #OpenAI
