@@ -1,4 +1,5 @@
-🚀 AI Project: Investment Research Swarm (AG2)
+**AI Project: Investment Research Swarm (AG2)**
+
 Building AI powered agents that think like an analyst, straight from Google Colab!
 
 In this project, I used AG2 (formerly AutoGen) to create a swarm of intelligent agents that collaborate to perform real-time investment research. Each agent plays a specialized role — gathering data, evaluating sentiment, estimating valuation, and more, all orchestrated automatically using GPT-4o.
