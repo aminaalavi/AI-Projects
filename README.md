@@ -5,6 +5,7 @@ Welcome to my AI project portfolio! Here, you'll find a collection of my AI expe
 ## Projects
 - [Project 1: AG2 CaptainAgent](AG2_CaptainAgent/README.md)
 - [Project 2: AG2 Swarm Orchestration-Financial Investment Research](AG2_Swarm/README.md)
+- [Project 3: Debating Alpha Agents-Multi-Agents for Equity Portfolio Selection](FinAlphaAgents/README.md)
 
 
 ## Getting Started
