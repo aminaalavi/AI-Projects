@@ -102,9 +102,10 @@ CRITIC_SYSTEM = (
 )
 
 JUDGE_SYSTEM = (
-    "You are a strict referee judging whether the OTHER PERSON (the Challenger) "
-    "would reasonably concede or agree given the USER's latest message. "
-    "Return STRICT JSON only:\n"
+    "You are a generous referee. Decide if the Challenger would now concede/agree "
+    "based on the USER's **latest** message and immediate context. Be lenient: "
+    "if the USER makes a clear, specific ask OR adds concrete evidence OR sets a firm boundary, "
+    "lean toward convinced. Return STRICT JSON only:\n"
     "{"
     '  "convinced": true|false,'
     '  "confidence": 0.0-1.0,'
@@ -136,6 +137,27 @@ def judge_turn(transcript, api_key):
     data.setdefault("confidence", 0.0)
     data.setdefault("why", "")
     data.setdefault("tips", [])
+    # --- make it easier: light heuristic on last user message ---
+    last_user = ""
+    for spk, m in reversed(transcript):
+        if spk.lower() == "user":
+            last_user = m.lower()
+            break
+    
+    keywords_ask = ["i want", "i need", "i would like", "i’m asking", "i am asking"]
+    keywords_boundary = ["i won’t", "not acceptable", "that doesn’t work", "i can’t agree"]
+    # crude evidence: numbers, $, %, dates-ish
+    has_evidence = any(ch.isdigit() for ch in last_user) or "$" in last_user or "%" in last_user
+    
+    clear_ask = any(k in last_user for k in keywords_ask)
+    clear_bound = any(k in last_user for k in keywords_boundary)
+    
+    # lower the bar: if there is any clear ask/boundary/evidence, boost outcome
+    conf = float(data.get("confidence", 0) or 0)
+    if (clear_ask or clear_bound or has_evidence) and conf >= 0.30:
+        data["convinced"] = True
+        data["confidence"] = max(conf, 0.55)
+
     return data
 
 
@@ -204,6 +226,25 @@ difficulty = st.slider("Difficulty (pushback level)", 1, 5, 3)
 
 if role == "other":
     role = st.text_input("Enter a custom role:", "").strip() or "peer"
+# Mode toggle buttons
+m1, m2 = st.columns(2)
+with m1:
+    if st.button("🎮 Game mode"):
+        st.session_state.mode = "game"
+        st.session_state.game_active = True
+        st.session_state.game_over = False
+        st.session_state.turns = 0
+        st.session_state.score = 0
+        st.session_state.streak = 0
+        st.session_state.transcript = []
+        st.success("Game mode: started a new game (3 turns). Convince the Challenger!")
+
+with m2:
+    if st.button("🗨️ Regular mode"):
+        st.session_state.mode = "regular"
+        st.session_state.game_active = False
+        st.session_state.game_over = False
+        st.info("Regular mode: free practice. No turns, no scoring.")
 
 
 if "transcript" not in st.session_state: st.session_state.transcript = []
@@ -214,9 +255,12 @@ if "challenger_agent" not in st.session_state: st.session_state.challenger_agent
 if "game_active" not in st.session_state: st.session_state.game_active = False
 if "game_over" not in st.session_state: st.session_state.game_over = False
 if "turns" not in st.session_state: st.session_state.turns = 0
-if "max_turns" not in st.session_state: st.session_state.max_turns = 6   # tweakable
+if "max_turns" not in st.session_state: st.session_state.max_turns = 3   # tweakable
 if "score" not in st.session_state: st.session_state.score = 0
 if "streak" not in st.session_state: st.session_state.streak = 0
+
+if "mode" not in st.session_state: st.session_state.mode = "regular"
+
 # --- Game Controls ---
 c1, c2 = st.columns(2)
 with c1:
@@ -312,18 +356,29 @@ for i, (k, v) in enumerate(presets.items()):
 
 st.write("Type a message, press Send. Click Evaluate anytime for feedback.")
 
-cX, cY = st.columns(2)
-with cX: st.metric("Score", st.session_state.score)
-with cY: st.metric("Win streak", st.session_state.streak)
+if st.session_state.mode == "game":
+    cX, cY = st.columns(2)
+    with cX: st.metric("Score", st.session_state.score)
+    with cY: st.metric("Win streak", st.session_state.streak)
+    st.caption(f"Turns: {st.session_state.turns}/{st.session_state.max_turns}")
+    st.progress(min(1.0, st.session_state.turns / max(1, st.session_state.max_turns)))
 
-st.caption(f"Turns: {st.session_state.turns}/{st.session_state.max_turns}")
-st.progress(min(1.0, st.session_state.turns / max(1, st.session_state.max_turns)))
+
+
 
     
 with st.form("chat"):
-    # (optional) lock input when game isn’t running
-    disabled = st.session_state.get("game_over", False) or not st.session_state.get("game_active", False)
-    user_msg = st.text_area("Your message", height=110, placeholder="State your ask / boundary...", disabled=disabled)
+    # Disable only if we're in Game mode AND the game is over
+    in_game = (st.session_state.get("mode", "regular") == "game")
+    disabled = in_game and st.session_state.get("game_over", False)
+
+    user_msg = st.text_area(
+        "Your message",
+        height=110,
+        placeholder="State your ask / boundary...",
+        disabled=disabled,
+        key="chat_input"  # lets us clear after send
+    )
     submitted = st.form_submit_button("Send", disabled=disabled)
 
     if submitted and user_msg.strip():
@@ -337,9 +392,12 @@ with st.form("chat"):
             reply = challenger_reply(st.session_state.challenger_agent, st.session_state.transcript)
             st.session_state.transcript.append(("Challenger", reply))
 
-            # ⬇️ JUDGE GOES HERE
-            # Judge only if game is active and not over
-            if st.session_state.get("game_active", False) and not st.session_state.get("game_over", False):
+            # Judge only in Game mode, while active and not over
+            if (
+                st.session_state.mode == "game"
+                and st.session_state.get("game_active", False)
+                and not st.session_state.get("game_over", False)
+            ):
                 st.session_state.turns += 1
                 verdict = judge_turn(st.session_state.transcript, api_key)
 
@@ -363,11 +421,15 @@ with st.form("chat"):
                         st.write("Try next:")
                         for t in tips:
                             st.markdown(f"- {t}")
-
                     if st.session_state.turns >= st.session_state.max_turns:
                         st.error("Out of turns. Game over.")
                         st.session_state.streak = 0
                         st.session_state.game_over = True
+
+        # ✅ Clear the input box after sending
+        st.session_state.chat_input = ""
+
+
 
 st.subheader("Transcript")
 for spk, msg in st.session_state.transcript:
