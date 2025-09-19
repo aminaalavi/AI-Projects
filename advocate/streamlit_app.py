@@ -101,6 +101,44 @@ CRITIC_SYSTEM = (
     "No prose, JSON only."
 )
 
+JUDGE_SYSTEM = (
+    "You are a strict referee judging whether the OTHER PERSON (the Challenger) "
+    "would reasonably concede or agree given the USER's latest message. "
+    "Return STRICT JSON only:\n"
+    "{"
+    '  "convinced": true|false,'
+    '  "confidence": 0.0-1.0,'
+    '  "why": "1-2 sentence reason",'
+    '  "tips": ["up to 2 short improvements for next turn"]'
+    "}"
+)
+
+def judge_turn(transcript, api_key):
+    llm_config = build_llm_config(api_key)
+    judge = AssistantAgent(name="Judge", system_message=JUDGE_SYSTEM, llm_config=llm_config)
+
+    # Last exchange focus: take last 4 lines for context
+    ctx = "\n".join([f"{spk}: {msg}" for spk, msg in transcript[-4:]])
+    prompt = (
+        "Decide if the Challenger would concede now based on this recent exchange.\n"
+        f"{ctx}\n"
+        "Return JSON only."
+    )
+    raw = judge.generate_reply(messages=[{"role":"user","content":prompt}])
+    try:
+        data = json.loads(raw.strip())
+    except:
+        import re
+        m = re.search(r"\{.*\}", raw, flags=re.S)
+        data = json.loads(m.group(0)) if m else {"convinced": False, "confidence": 0.0, "why": "Parse error", "tips": []}
+    # Safety defaults
+    data.setdefault("convinced", False)
+    data.setdefault("confidence", 0.0)
+    data.setdefault("why", "")
+    data.setdefault("tips", [])
+    return data
+
+
 def make_challenger_system(role: str, level: int) -> str:
     tones = {
         1: "polite but firm",
@@ -167,9 +205,43 @@ difficulty = st.slider("Difficulty (pushback level)", 1, 5, 3)
 if role == "other":
     role = st.text_input("Enter a custom role:", "").strip() or "peer"
 
+
 if "transcript" not in st.session_state: st.session_state.transcript = []
 if "challenger_role" not in st.session_state: st.session_state.challenger_role = None
 if "challenger_agent" not in st.session_state: st.session_state.challenger_agent = None
+
+# --- Game state for gamified version ---
+if "game_active" not in st.session_state: st.session_state.game_active = False
+if "game_over" not in st.session_state: st.session_state.game_over = False
+if "turns" not in st.session_state: st.session_state.turns = 0
+if "max_turns" not in st.session_state: st.session_state.max_turns = 6   # tweakable
+if "score" not in st.session_state: st.session_state.score = 0
+if "streak" not in st.session_state: st.session_state.streak = 0
+# --- Game Controls ---
+c1, c2 = st.columns(2)
+with c1:
+    if st.button("🎮 Start Game"):
+        st.session_state.game_active = True
+        st.session_state.game_over = False
+        st.session_state.transcript = []
+        st.session_state.turns = 0
+        st.session_state.score = 0
+        st.session_state.streak = 0
+        st.success("Game started! Convince the Challenger before turns run out.")
+
+with c2:
+    if st.button("🔄 Reset Game"):
+        st.session_state.game_active = False
+        st.session_state.game_over = False
+        st.session_state.transcript = []
+        st.session_state.turns = 0
+        st.session_state.score = 0
+        st.session_state.streak = 0
+        st.info("Conversation reset.")
+
+
+
+
 
 def ensure_agent(role: str, difficulty: int, api_key: str):
     """Create/recreate the Challenger agent when role or difficulty changes."""
@@ -240,9 +312,20 @@ for i, (k, v) in enumerate(presets.items()):
 
 st.write("Type a message, press Send. Click Evaluate anytime for feedback.")
 
+cX, cY = st.columns(2)
+with cX: st.metric("Score", st.session_state.score)
+with cY: st.metric("Win streak", st.session_state.streak)
+
+st.caption(f"Turns: {st.session_state.turns}/{st.session_state.max_turns}")
+st.progress(min(1.0, st.session_state.turns / max(1, st.session_state.max_turns)))
+
+    
 with st.form("chat"):
-    user_msg = st.text_area("Your message", height=110, placeholder="State your ask / boundary...")
-    submitted = st.form_submit_button("Send")
+    # (optional) lock input when game isn’t running
+    disabled = st.session_state.get("game_over", False) or not st.session_state.get("game_active", False)
+    user_msg = st.text_area("Your message", height=110, placeholder="State your ask / boundary...", disabled=disabled)
+    submitted = st.form_submit_button("Send", disabled=disabled)
+
     if submitted and user_msg.strip():
         st.session_state.transcript.append(("User", user_msg.strip()))
         if not api_key:
@@ -250,8 +333,41 @@ with st.form("chat"):
         elif st.session_state.challenger_agent is None:
             st.warning("Set the role to create the Challenger.")
         else:
+            # Challenger responds
             reply = challenger_reply(st.session_state.challenger_agent, st.session_state.transcript)
             st.session_state.transcript.append(("Challenger", reply))
+
+            # ⬇️ JUDGE GOES HERE
+            # Judge only if game is active and not over
+            if st.session_state.get("game_active", False) and not st.session_state.get("game_over", False):
+                st.session_state.turns += 1
+                verdict = judge_turn(st.session_state.transcript, api_key)
+
+                # Light scoring: +10 on win, +2 per turn if confidence ≥ 0.5
+                st.session_state.score += 2 if verdict.get("confidence", 0) >= 0.5 else 0
+
+                if verdict.get("convinced", False):
+                    st.success(f"You win! Judge: convinced (confidence {verdict.get('confidence',0):.2f}).")
+                    if verdict.get("why"):
+                        st.caption(f"Why: {verdict['why']}")
+                    st.session_state.score += 10
+                    st.session_state.streak = st.session_state.get("streak", 0) + 1
+                    st.session_state.game_over = True
+                    st.balloons()
+                else:
+                    st.info("Judge: not convinced yet.")
+                    if verdict.get("why"):
+                        st.caption(f"Why: {verdict['why']}")
+                    tips = verdict.get("tips", [])
+                    if tips:
+                        st.write("Try next:")
+                        for t in tips:
+                            st.markdown(f"- {t}")
+
+                    if st.session_state.turns >= st.session_state.max_turns:
+                        st.error("Out of turns. Game over.")
+                        st.session_state.streak = 0
+                        st.session_state.game_over = True
 
 st.subheader("Transcript")
 for spk, msg in st.session_state.transcript:
