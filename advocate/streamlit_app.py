@@ -5,8 +5,8 @@ from autogen import AssistantAgent
 
 # For streamlit--------------------------------------------------
 # ---------- PRETTY RENDER HELPERS ----------
-import math
-import streamlit as st
+# import math
+# import streamlit as st
 
 def _score_bar(label: str, value: int | float):
     v = max(0, min(10, float(value)))
@@ -101,29 +101,39 @@ CRITIC_SYSTEM = (
     "No prose, JSON only."
 )
 
-def make_challenger_system(role: str) -> str:
+def make_challenger_system(role: str, level: int) -> str:
+    tones = {
+        1: "polite but firm",
+        3: "curt, slightly dismissive",
+        5: "sharply dismissive (still non-abusive)"
+    }
+    style = tones.get(level, "curt")
     return (
         f"You are roleplaying as the USER's {role}. "
-        "Your job is to push back against the USER’s requests. "
-        "Be realistic, professional, and never abusive, but you may be curt, dismissive, "
-        "condescending, or subtly demeaning. "
-        "Always speak IN CHARACTER as that person (never as an observer). "
-        "Do not break character. "
-        "Keep replies under 80 words."
+        f"Your pushback intensity is {level}/5 and your tone is {style}. "
+        "Be realistic, never abusive, but you may be curt, dismissive, or subtly demeaning. "
+        "Stay in character. Keep replies under 80 words."
     )
 
+
 def challenger_reply(challenger: AssistantAgent, transcript):
+    """Generate a Challenger reply based on transcript + role + difficulty."""
     ctx = "\n".join([f"{spk}: {msg}" for spk, msg in transcript[-6:]])
-    latest_user = next((m for spk, m in reversed(transcript) if spk.lower()=="user"), "")
+    latest_user = next((m for spk, m in reversed(transcript) if spk.lower() == "user"), "")
+
     prompt = (
         f"Context so far:\n{ctx}\n\n"
         f"User's latest message:\n{latest_user}\n\n"
-        "Reply in character as that role. Keep under 80 words."
+        "Reply IN CHARACTER as the assigned role "
+        "with the specified pushback intensity. "
+        "Keep your message under 80 words."
     )
+
     return challenger.generate_reply(messages=[
-        {"role":"system","content":challenger.system_message},
-        {"role":"user","content":prompt},
+        {"role": "system", "content": challenger.system_message},
+        {"role": "user", "content": prompt},
     ]).strip()
+
 
 def evaluate_transcript(transcript, api_key):
     llm_config = build_llm_config(api_key)
@@ -152,6 +162,8 @@ role = st.selectbox(
     ["teenager","spouse","parent","sibling","peer","boss","customer service rep","roommate","friend","teacher","landlord","other"],
     index=0
 )
+difficulty = st.slider("Difficulty (pushback level)", 1, 5, 3)
+
 if role == "other":
     role = st.text_input("Enter a custom role:", "").strip() or "peer"
 
@@ -159,21 +171,72 @@ if "transcript" not in st.session_state: st.session_state.transcript = []
 if "challenger_role" not in st.session_state: st.session_state.challenger_role = None
 if "challenger_agent" not in st.session_state: st.session_state.challenger_agent = None
 
-def ensure_agent(role, api_key):
+def ensure_agent(role: str, difficulty: int, api_key: str):
+    """Create/recreate the Challenger agent when role or difficulty changes."""
+    if not api_key:
+        return
+
+    # Init state holders if missing
+    if "challenger_agent" not in st.session_state:
+        st.session_state.challenger_agent = None
+    if "challenger_role" not in st.session_state:
+        st.session_state.challenger_role = None
+    if "challenger_difficulty" not in st.session_state:
+        st.session_state.challenger_difficulty = None
+    if "transcript" not in st.session_state:
+        st.session_state.transcript = []
+
+    # Rebuild when role or difficulty changed, or agent missing
     changed_role = (st.session_state.challenger_role != role)
+    changed_diff = (st.session_state.challenger_difficulty != difficulty)
     missing = st.session_state.challenger_agent is None
-    if not api_key: return
-    if changed_role or missing:
+
+    if changed_role or changed_diff or missing:
         llm_config = build_llm_config(api_key)
         st.session_state.challenger_agent = AssistantAgent(
             name="Challenger",
-            system_message=make_challenger_system(role),
+            system_message=make_challenger_system(role, difficulty),
             llm_config=llm_config,
         )
         st.session_state.challenger_role = role
-        st.session_state.transcript = []
+        st.session_state.challenger_difficulty = difficulty
+        st.session_state.transcript = []  # reset when persona intensity changes
 
-ensure_agent(role, api_key)
+
+ensure_agent(role, difficulty, api_key)
+
+# Scenario presets
+st.subheader("Scenario presets")
+
+presets = {
+    "Teenager party": {
+        "role": "teenager",
+        "first": "I don’t want you going to the party where there’s drinking."
+    },
+    "Customer refund": {
+        "role": "customer service rep",
+        "first": "I’d like a refund for the subscription that auto-renewed."
+    },
+    "Peer taking credit": {
+        "role": "peer",
+        "first": "Please stop presenting my work without attribution. I need co-credit."
+    },
+    "Boss scope creep": {
+        "role": "boss",
+        "first": "I can’t add this project without moving deadlines or dropping X. Let’s prioritize."
+    },
+}
+
+cols = st.columns(len(presets))
+for i, (k, v) in enumerate(presets.items()):
+    if cols[i].button(k):
+        # Rebuild agent with preset role + current difficulty
+        ensure_agent(v["role"], difficulty, api_key)
+        st.session_state.transcript = [("User", v["first"])]
+        if st.session_state.challenger_agent:
+            reply = challenger_reply(st.session_state.challenger_agent, st.session_state.transcript)
+            st.session_state.transcript.append(("Challenger", reply))
+
 
 st.write("Type a message, press Send. Click Evaluate anytime for feedback.")
 
