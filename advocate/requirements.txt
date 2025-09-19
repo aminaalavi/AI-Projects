@@ -1,5 +1,6 @@
 streamlit>=1.34
 openai>=1.42.0
-autogen==0.2.29
+autogen==0.7.6
 tiktoken>=0.7.0
 certifi>=2024.7.4
+
