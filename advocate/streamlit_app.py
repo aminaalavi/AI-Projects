@@ -229,6 +229,8 @@ if "score" not in st.session_state: st.session_state.score = 0
 if "streak" not in st.session_state: st.session_state.streak = 0
 
 if "mode" not in st.session_state: st.session_state.mode = "regular"
+if "last_verdict" not in st.session_state: st.session_state.last_verdict = None
+
 api_key = st.text_input("OpenAI API Key", type="password", value=os.getenv("OPENAI_API_KEY",""))
 if api_key: os.environ["OPENAI_API_KEY"] = api_key
 
@@ -367,12 +369,31 @@ if st.session_state.mode == "game":
     st.caption(f"Turns: {st.session_state.turns}/{st.session_state.max_turns}")
     st.progress(min(1.0, st.session_state.turns / max(1, st.session_state.max_turns)))
 
+# show last judge verdict (if any)
+_verdict = st.session_state.get("last_verdict")
+if _verdict and st.session_state.mode == "game":
+    if _verdict.get("convinced", False):
+        st.success(f"Judge: convinced (confidence {_verdict.get('confidence',0):.2f})")
+    else:
+        st.info("Judge: not convinced yet.")
+    if _verdict.get("why"):
+        st.caption(f"Why: {_verdict['why']}")
+    _tips = _verdict.get("tips", [])
+    if _tips:
+        with st.expander("Try next"):
+            for t in _tips:
+                st.markdown(f"- {t}")
+
+
 
 
 # Clear pending chat input BEFORE rendering the widget
 if st.session_state.pop("__clear_chat_input", False):
     st.session_state.chat_input = ""
     
+
+
+
 with st.form("chat"):
     # Disable only if we're in Game mode AND the game is over
     in_game = (st.session_state.get("mode", "regular") == "game")
@@ -432,9 +453,11 @@ with st.form("chat"):
                         st.session_state.streak = 0
                         st.session_state.game_over = True
 
-        # ✅ Clear the input box after sending
+        # remember verdict for next render
+        st.session_state.last_verdict = verdict if ('verdict' in locals()) else None
+        # clear the input on next render (no manual rerun)
         st.session_state.__clear_chat_input = True
-        st.rerun()
+
 
 
 
