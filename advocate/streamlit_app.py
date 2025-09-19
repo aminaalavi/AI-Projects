@@ -250,6 +250,8 @@ with m2:
 if "transcript" not in st.session_state: st.session_state.transcript = []
 if "challenger_role" not in st.session_state: st.session_state.challenger_role = None
 if "challenger_agent" not in st.session_state: st.session_state.challenger_agent = None
+if "chat_input" not in st.session_state: st.session_state.chat_input = ""
+    
 
 # --- Game state for gamified version ---
 if "game_active" not in st.session_state: st.session_state.game_active = False
@@ -430,9 +432,12 @@ with st.form("chat"):
 
         # ✅ Clear the input box after sending
         st.session_state.chat_input = ""
+        st.session_state.__clear_chat_input = True
 
 
-
+if st.session_state.pop("__clear_chat_input", False):
+    st.rerun()
+    
 st.subheader("Transcript")
 for spk, msg in st.session_state.transcript:
     st.markdown(f"**{spk}:** {msg}")
