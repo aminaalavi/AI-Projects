@@ -262,26 +262,28 @@ if "streak" not in st.session_state: st.session_state.streak = 0
 if "mode" not in st.session_state: st.session_state.mode = "regular"
 
 # --- Game Controls ---
-c1, c2 = st.columns(2)
-with c1:
-    if st.button("🎮 Start Game"):
-        st.session_state.game_active = True
-        st.session_state.game_over = False
-        st.session_state.transcript = []
-        st.session_state.turns = 0
-        st.session_state.score = 0
-        st.session_state.streak = 0
-        st.success("Game started! Convince the Challenger before turns run out.")
+# --- Game Controls (only in Game mode) ---
+if st.session_state.mode == "game":
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("🎮 Start Game"):
+            st.session_state.game_active = True
+            st.session_state.game_over = False
+            st.session_state.transcript = []
+            st.session_state.turns = 0
+            st.session_state.score = 0
+            st.session_state.streak = 0
+            st.success("Game started! Convince the Challenger before turns run out.")
 
-with c2:
-    if st.button("🔄 Reset Game"):
-        st.session_state.game_active = False
-        st.session_state.game_over = False
-        st.session_state.transcript = []
-        st.session_state.turns = 0
-        st.session_state.score = 0
-        st.session_state.streak = 0
-        st.info("Conversation reset.")
+    with c2:
+        if st.button("🔄 Reset Game"):
+            st.session_state.game_active = False
+            st.session_state.game_over = False
+            st.session_state.transcript = []
+            st.session_state.turns = 0
+            st.session_state.score = 0
+            st.session_state.streak = 0
+            st.info("Conversation reset.")
 
 
 
