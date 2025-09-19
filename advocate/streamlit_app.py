@@ -214,6 +214,21 @@ def evaluate_transcript(transcript, api_key):
 st.set_page_config(page_title="AdvocateAI", page_icon="💬", layout="centered")
 st.title("AdvocateAI — Self-Advocacy Practice")
 
+if "transcript" not in st.session_state: st.session_state.transcript = []
+if "challenger_role" not in st.session_state: st.session_state.challenger_role = None
+if "challenger_agent" not in st.session_state: st.session_state.challenger_agent = None
+if "chat_input" not in st.session_state: st.session_state.chat_input = ""
+    
+
+# --- Game state for gamified version ---
+if "game_active" not in st.session_state: st.session_state.game_active = False
+if "game_over" not in st.session_state: st.session_state.game_over = False
+if "turns" not in st.session_state: st.session_state.turns = 0
+if "max_turns" not in st.session_state: st.session_state.max_turns = 3   # tweakable
+if "score" not in st.session_state: st.session_state.score = 0
+if "streak" not in st.session_state: st.session_state.streak = 0
+
+if "mode" not in st.session_state: st.session_state.mode = "regular"
 api_key = st.text_input("OpenAI API Key", type="password", value=os.getenv("OPENAI_API_KEY",""))
 if api_key: os.environ["OPENAI_API_KEY"] = api_key
 
@@ -247,21 +262,6 @@ with m2:
         st.info("Regular mode: free practice. No turns, no scoring.")
 
 
-if "transcript" not in st.session_state: st.session_state.transcript = []
-if "challenger_role" not in st.session_state: st.session_state.challenger_role = None
-if "challenger_agent" not in st.session_state: st.session_state.challenger_agent = None
-if "chat_input" not in st.session_state: st.session_state.chat_input = ""
-    
-
-# --- Game state for gamified version ---
-if "game_active" not in st.session_state: st.session_state.game_active = False
-if "game_over" not in st.session_state: st.session_state.game_over = False
-if "turns" not in st.session_state: st.session_state.turns = 0
-if "max_turns" not in st.session_state: st.session_state.max_turns = 3   # tweakable
-if "score" not in st.session_state: st.session_state.score = 0
-if "streak" not in st.session_state: st.session_state.streak = 0
-
-if "mode" not in st.session_state: st.session_state.mode = "regular"
 
 # --- Game Controls ---
 # --- Game Controls (only in Game mode) ---
@@ -369,7 +369,9 @@ if st.session_state.mode == "game":
 
 
 
-
+# Clear pending chat input BEFORE rendering the widget
+if st.session_state.pop("__clear_chat_input", False):
+    st.session_state.chat_input = ""
     
 with st.form("chat"):
     # Disable only if we're in Game mode AND the game is over
@@ -431,13 +433,11 @@ with st.form("chat"):
                         st.session_state.game_over = True
 
         # ✅ Clear the input box after sending
-        st.session_state.chat_input = ""
         st.session_state.__clear_chat_input = True
+        st.rerun()
 
 
-if st.session_state.pop("__clear_chat_input", False):
-    st.rerun()
-    
+
 st.subheader("Transcript")
 for spk, msg in st.session_state.transcript:
     st.markdown(f"**{spk}:** {msg}")
