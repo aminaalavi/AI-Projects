@@ -1,6 +1,76 @@
+
 import os, json
 import streamlit as st
 from autogen import AssistantAgent
+
+# For streamlit--------------------------------------------------
+# ---------- PRETTY RENDER HELPERS ----------
+import math
+import streamlit as st
+
+def _score_bar(label: str, value: int | float):
+    v = max(0, min(10, float(value)))
+    st.metric(label, f"{int(v)}/10")
+    st.progress(v/10)
+
+def render_coach(coach: dict):
+    st.subheader("Coach (scorecard)")
+    if not isinstance(coach, dict):
+        st.info("No coach data.")
+        return
+
+    scores = coach.get("scores", {}) or {}
+    tips   = coach.get("tips", []) or []
+    exs    = coach.get("examples", []) or []
+
+    # Scores as metrics + progress bars
+    cols = st.columns(4)
+    order = ["Clarity", "Assertiveness", "Evidence", "Boundaries"]
+    for i, k in enumerate(order):
+        with cols[i]:
+            _score_bar(k, scores.get(k, 0))
+
+    # Tips
+    if tips:
+        st.markdown("**Tips (try these next time):**")
+        for t in tips:
+            st.markdown(f"- {t}")
+
+    # Stronger phrasing examples
+    if exs:
+        st.markdown("**Stronger example phrases:**")
+        for e in exs:
+            st.markdown(f"> {e}")
+
+def render_critic(critic: dict):
+    st.subheader("Critic (diagnostics)")
+    if not isinstance(critic, dict):
+        st.info("No critic data.")
+        return
+
+    weaknesses = critic.get("weaknesses", []) or []
+    risks      = critic.get("risks", []) or []
+    counts     = critic.get("counts", {}) or {}
+
+    if weaknesses:
+        st.markdown("**Weaknesses spotted:**")
+        for w in weaknesses:
+            st.markdown(f"- {w}")
+
+    if risks:
+        st.markdown("**Risks if you keep this pattern:**")
+        for r in risks:
+            st.markdown(f"- {r}")
+
+    if counts:
+        st.markdown("**Counts**")
+        c1, c2, c3 = st.columns(3)
+        with c1: st.metric("Apologies", counts.get("apologies", 0))
+        with c2: st.metric("Hedges", counts.get("hedges", 0))
+        with c3: st.metric("Explicit asks", counts.get("explicit_asks", 0))
+
+#end of streamlit addition----------------------------------------------
+
 
 MODEL_NAME = "gpt-4o-mini"
 
@@ -133,10 +203,18 @@ with c1:
             st.info("Start a conversation first.")
         else:
             results = evaluate_transcript(st.session_state.transcript, api_key)
-            st.subheader("Coach (scorecard)")
-            st.json(results.get("coach", {}))
-            st.subheader("Critic (diagnostics)")
-            st.json(results.get("critic", {}))
+            coach = results.get("coach", {})
+            critic = results.get("critic", {})
+            
+            # Pretty UI
+            render_coach(coach)
+            st.markdown("---")
+            render_critic(critic)
+            
+            # Optional: raw JSON in an expander
+            with st.expander("Show raw JSON"):
+                st.code(json.dumps(results, indent=2), language="json")
+
 with c2:
     if st.button("Reset conversation"):
         st.session_state.transcript = []
