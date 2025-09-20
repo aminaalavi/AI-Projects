@@ -6,12 +6,6 @@ from autogen import AssistantAgent
 # -------------------- CONFIG --------------------
 MODEL_NAME = "gpt-4o-mini"
 
-SCORE_RULES_TEXT = (
-    "Scoring: +10 points if the Judge is convinced (WIN). "
-    "+2 points for a strong attempt when confidence ≥ 0.50. "
-    "+1 bonus if your last message contained a clear ask, boundary, or concrete evidence."
-)
-
 # -------------------- LLM SYSTEMS --------------------
 def build_llm_config(api_key: str):
     return {"config_list":[{"model": MODEL_NAME, "api_key": api_key}], "temperature":0.3}
@@ -41,10 +35,10 @@ CRITIC_SYSTEM = (
 )
 
 JUDGE_SYSTEM = (
-    "You are a generous referee. Decide if the Challenger would now concede/agree "
-    "based on the USER's **latest** message and immediate context. Be lenient: "
-    "if the USER makes a clear, specific ask OR adds concrete evidence OR sets a firm boundary, "
-    "lean toward convinced. Return STRICT JSON only:\n"
+    "You are a fair referee. Decide if the Challenger would now concede/agree "
+    "based on the USER's latest message and immediate context. "
+    "Look for a clear ask with specifics (amount/timeline), a firm boundary, or a brief reason/evidence. "
+    "Return STRICT JSON only:\n"
     "{"
     '  "convinced": true|false,'
     '  "confidence": 0.0-1.0,'
@@ -139,13 +133,17 @@ def challenger_reply(challenger: AssistantAgent, transcript):
 def challenger_concede_message(role: str) -> str:
     """What the challenger says when conceding after the Judge is convinced."""
     return (
-        "Alright, you’ve made a clear case. I’ll agree to your request and move forward accordingly."
+        "Alright, you’ve presented a clear case. I agree to your request and will proceed."
         if role != "customer service rep"
         else "You’re right—consider it approved. I’ll process this now."
     )
 
 def judge_turn(transcript, api_key):
-    """Judge with a stricter, more rational boost: requires substance + confidence."""
+    """
+    Judge with balanced strictness:
+    - Convinced if there's a boundary OR (ask + amount/timeline) OR (ask + brief reason),
+      AND model confidence is moderate.
+    """
     llm_config = build_llm_config(api_key)
     judge = AssistantAgent(name="Judge", system_message=JUDGE_SYSTEM, llm_config=llm_config)
 
@@ -193,21 +191,29 @@ def judge_turn(transcript, api_key):
         "i won’t", "i will not", "not acceptable", "that doesn’t work", "that does not work",
         "i can’t agree", "i cannot agree", "i'm not able to", "i am not able to"
     ])
+    has_reason = any(r in last_user for r in ["because", "since ", "due to", "so that", "as "])
 
-    # confidence from model
     conf = float(data.get("confidence", 0) or 0)
 
-    # rational thresholds
-    strong_substance = has_boundary or has_amount or has_timeline
-    if strong_substance and conf >= 0.55:
+    # balanced thresholds (not too lenient, not too strict)
+    strong_substance = has_boundary or (clear_ask and (has_amount or has_timeline)) or (clear_ask and has_reason)
+    two_signals = sum([has_boundary, has_amount, has_timeline, has_reason, clear_ask]) >= 2
+
+    if has_boundary and conf >= 0.58:
         data["convinced"] = True
         data["confidence"] = max(conf, 0.60)
-    elif clear_ask and (has_amount or has_timeline) and conf >= 0.60:
+    elif clear_ask and (has_amount or has_timeline) and conf >= 0.63:
         data["convinced"] = True
-        data["confidence"] = max(conf, 0.62)
+        data["confidence"] = max(conf, 0.65)
+    elif clear_ask and has_reason and conf >= 0.65:
+        data["convinced"] = True
+        data["confidence"] = max(conf, 0.67)
+    elif strong_substance and two_signals and conf >= 0.62:
+        data["convinced"] = True
+        data["confidence"] = max(conf, 0.64)
 
-    # attach flag for scoring
-    data["_has_signal"] = bool(clear_ask or has_amount or has_timeline or has_boundary)
+    # attach a small flag for UI (kept for future use if needed)
+    data["_has_signal"] = bool(clear_ask or has_amount or has_timeline or has_boundary or has_reason)
     return data
 
 def evaluate_transcript(transcript, api_key):
@@ -231,6 +237,9 @@ def evaluate_transcript(transcript, api_key):
 st.set_page_config(page_title="AdvocateAI", page_icon="💬", layout="centered")
 st.title("AdvocateAI — Self-Advocacy Practice")
 
+# very brief how-to
+st.info("How to use: pick a role, type your ask, and send. In Game mode you get 3 tries to convince the Challenger. Over time it trains you to be clearer, more assertive, and better at self-advocating.")
+
 # Init states
 if "transcript" not in st.session_state: st.session_state.transcript = []
 if "challenger_role" not in st.session_state: st.session_state.challenger_role = None
@@ -240,8 +249,6 @@ if "game_active" not in st.session_state: st.session_state.game_active = False
 if "game_over" not in st.session_state: st.session_state.game_over = False
 if "turns" not in st.session_state: st.session_state.turns = 0
 if "max_turns" not in st.session_state: st.session_state.max_turns = 3
-if "score" not in st.session_state: st.session_state.score = 0
-if "streak" not in st.session_state: st.session_state.streak = 0
 if "mode" not in st.session_state: st.session_state.mode = "regular"
 if "last_verdict" not in st.session_state: st.session_state.last_verdict = None
 if "convinced_win" not in st.session_state: st.session_state.convinced_win = False  # blocks input after win in any mode
@@ -267,19 +274,17 @@ with m1:
         st.session_state.game_active = True
         st.session_state.game_over = False
         st.session_state.turns = 0
-        st.session_state.score = 0
-        st.session_state.streak = 0
         st.session_state.transcript = []
         st.session_state.last_verdict = None
         st.session_state.convinced_win = False
-        st.success("Game mode: started a new game (3 turns). Convince the Challenger!")
+        st.success("Game mode started. You have 3 attempts.")
 with m2:
     if st.button("🗨️ Regular mode"):
         st.session_state.mode = "regular"
         st.session_state.game_active = False
         st.session_state.game_over = False
         st.session_state.convinced_win = False
-        st.info("Regular mode: free practice. No turns, no scoring.")
+        st.info("Regular mode: free practice.")
 
 # Agent setup
 def ensure_agent(role: str, difficulty: int, api_key: str):
@@ -306,13 +311,10 @@ ensure_agent(role, difficulty, api_key)
 # Game HUD
 in_game = (st.session_state.get("mode") == "game")
 if in_game:
-    cX, cY, cZ = st.columns(3)
-    with cX: st.metric("Score", st.session_state.score)
-    with cY: st.metric("Win streak", st.session_state.streak)
     attempts_left = max(0, st.session_state.max_turns - st.session_state.turns)
-    with cZ: st.metric("Attempts left", f"{attempts_left}/{st.session_state.max_turns}")
+    cA, = st.columns(1)
+    with cA: st.metric("Attempts left", f"{attempts_left}/{st.session_state.max_turns}")
     st.progress(min(1.0, st.session_state.turns / max(1, st.session_state.max_turns)))
-    st.caption(SCORE_RULES_TEXT)
 
 # Chat input form (disabled after win, or when game over)
 input_disabled = st.session_state.convinced_win or (in_game and st.session_state.get("game_over", False))
@@ -320,7 +322,7 @@ with st.form("chat_form", clear_on_submit=True):
     user_msg = st.text_area(
         "Your message",
         height=110,
-        placeholder="State your ask / boundary...",
+        placeholder="State your ask / boundary (add specifics or a brief reason to win).",
         disabled=input_disabled,
         key="chat_input"
     )
@@ -335,7 +337,7 @@ if submitted and user_msg.strip():
     elif st.session_state.challenger_agent is None:
         st.warning("Set the role to create the Challenger.")
     else:
-        # 2) Judge FIRST on the user's message (so we decide win before challenger replies)
+        # 2) Judge FIRST on the user's message (decide win before challenger replies)
         verdict = judge_turn(st.session_state.transcript, api_key)
         st.session_state.last_verdict = verdict
 
@@ -343,14 +345,8 @@ if submitted and user_msg.strip():
         if verdict.get("convinced", False):
             st.session_state.transcript.append(("Challenger", challenger_concede_message(st.session_state.challenger_role or role)))
             if in_game and st.session_state.get("game_active", False) and not st.session_state.get("game_over", False):
-                # scoring for a win
-                if verdict.get("_has_signal"): st.session_state.score += 1
-                if verdict.get("confidence", 0) >= 0.5: st.session_state.score += 2
-                st.session_state.score += 10
-                st.session_state.streak = st.session_state.get("streak", 0) + 1
                 st.session_state.game_over = True
-            # block further input in any mode
-            st.session_state.convinced_win = True
+            st.session_state.convinced_win = True  # block further input in any mode
 
         else:
             # 4) Otherwise, normal challenger pushback
@@ -359,11 +355,8 @@ if submitted and user_msg.strip():
 
             # 5) In game mode, consume a turn and possibly end after 3 non-winning tries
             if in_game and st.session_state.get("game_active", False) and not st.session_state.get("game_over", False):
-                if verdict.get("_has_signal"): st.session_state.score += 1
-                if verdict.get("confidence", 0) >= 0.5: st.session_state.score += 2
                 st.session_state.turns += 1
                 if st.session_state.turns >= st.session_state.max_turns:
-                    st.session_state.streak = 0
                     st.session_state.game_over = True
 
 # Judge section (always visible)
@@ -402,7 +395,6 @@ with c1:
             coach = results.get("coach", {})
             critic = results.get("critic", {})
             render_coach(coach)
-            st.markdown("")
             render_critic(critic)
             with st.expander("Show raw JSON"):
                 st.code(json.dumps(results, indent=2), language="json")
@@ -411,6 +403,5 @@ with c2:
         st.session_state.transcript = []
         st.session_state.last_verdict = None
         st.session_state.turns = 0
-        st.session_state.score = 0
         st.session_state.game_over = False
         st.session_state.convinced_win = False
