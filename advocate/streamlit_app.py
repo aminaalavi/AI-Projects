@@ -3,6 +3,7 @@ import json
 import streamlit as st
 from autogen import AssistantAgent
 
+# -------------------- CONFIG --------------------
 MODEL_NAME = "gpt-4o-mini"
 
 SCORE_RULES_TEXT = (
@@ -11,58 +12,7 @@ SCORE_RULES_TEXT = (
     "+1 bonus if your last message contained a clear ask, boundary, or concrete evidence."
 )
 
-# ------------------- PRETTY HELPERS -------------------
-def _score_bar(label: str, value: int | float):
-    v = max(0, min(10, float(value)))
-    st.metric(label, f"{int(v)}/10")
-    st.progress(v/10)
-
-def render_coach(coach: dict):
-    st.subheader("Coach (scorecard)")
-    if not isinstance(coach, dict):
-        st.info("No coach data.")
-        return
-    scores = coach.get("scores", {}) or {}
-    tips   = coach.get("tips", []) or []
-    exs    = coach.get("examples", []) or []
-    cols = st.columns(4)
-    order = ["Clarity", "Assertiveness", "Evidence", "Boundaries"]
-    for i, k in enumerate(order):
-        with cols[i]:
-            _score_bar(k, scores.get(k, 0))
-    if tips:
-        st.markdown("**Tips (try these next time):**")
-        for t in tips:
-            st.markdown(f"- {t}")
-    if exs:
-        st.markdown("**Stronger example phrases:**")
-        for e in exs:
-            st.markdown(f"> {e}")
-
-def render_critic(critic: dict):
-    st.subheader("Critic (diagnostics)")
-    if not isinstance(critic, dict):
-        st.info("No critic data.")
-        return
-    weaknesses = critic.get("weaknesses", []) or []
-    risks      = critic.get("risks", []) or []
-    counts     = critic.get("counts", {}) or {}
-    if weaknesses:
-        st.markdown("**Weaknesses spotted:**")
-        for w in weaknesses:
-            st.markdown(f"- {w}")
-    if risks:
-        st.markdown("**Risks if you keep this pattern:**")
-        for r in risks:
-            st.markdown(f"- {r}")
-    if counts:
-        st.markdown("**Counts**")
-        c1, c2, c3 = st.columns(3)
-        with c1: st.metric("Apologies", counts.get("apologies", 0))
-        with c2: st.metric("Hedges", counts.get("hedges", 0))
-        with c3: st.metric("Explicit asks", counts.get("explicit_asks", 0))
-
-# ------------------- LLM SYSTEMS -------------------
+# -------------------- LLM SYSTEMS --------------------
 def build_llm_config(api_key: str):
     return {"config_list":[{"model": MODEL_NAME, "api_key": api_key}], "temperature":0.3}
 
@@ -103,7 +53,97 @@ JUDGE_SYSTEM = (
     "}"
 )
 
-# ------------------- LOGIC -------------------
+# -------------------- HELPERS (UI) --------------------
+def _score_bar(label: str, value: int | float):
+    v = max(0, min(10, float(value)))
+    st.metric(label, f"{int(v)}/10")
+    st.progress(v/10)
+
+def render_coach(coach: dict):
+    st.subheader("Coach (scorecard)")
+    if not isinstance(coach, dict):
+        st.info("No coach data.")
+        return
+    scores = coach.get("scores", {}) or {}
+    tips   = coach.get("tips", []) or []
+    exs    = coach.get("examples", []) or []
+
+    cols = st.columns(4)
+    order = ["Clarity", "Assertiveness", "Evidence", "Boundaries"]
+    for i, k in enumerate(order):
+        with cols[i]:
+            _score_bar(k, scores.get(k, 0))
+
+    if tips:
+        st.markdown("**Tips (try these next time):**")
+        for t in tips:
+            st.markdown(f"- {t}")
+
+    if exs:
+        st.markdown("**Stronger example phrases:**")
+        for e in exs:
+            st.markdown(f"> {e}")
+
+def render_critic(critic: dict):
+    st.subheader("Critic (diagnostics)")
+    if not isinstance(critic, dict):
+        st.info("No critic data.")
+        return
+    weaknesses = critic.get("weaknesses", []) or []
+    risks      = critic.get("risks", []) or []
+    counts     = critic.get("counts", {}) or {}
+
+    if weaknesses:
+        st.markdown("**Weaknesses spotted:**")
+        for w in weaknesses:
+            st.markdown(f"- {w}")
+
+    if risks:
+        st.markdown("**Risks if you keep this pattern:**")
+        for r in risks:
+            st.markdown(f"- {r}")
+
+    if counts:
+        st.markdown("**Counts**")
+        c1, c2, c3 = st.columns(3)
+        with c1: st.metric("Apologies", counts.get("apologies", 0))
+        with c2: st.metric("Hedges", counts.get("hedges", 0))
+        with c3: st.metric("Explicit asks", counts.get("explicit_asks", 0))
+
+# -------------------- CORE LOGIC --------------------
+def make_challenger_system(role: str, level: int) -> str:
+    tones = {1: "polite but firm", 3: "curt, slightly dismissive", 5: "sharply dismissive (still non-abusive)"}
+    style = tones.get(level, "curt")
+    return (
+        f"You are roleplaying as the USER's {role}. "
+        f"Your pushback intensity is {level}/5 and your tone is {style}. "
+        "Be realistic, never abusive, but you may be curt, dismissive, or subtly demeaning. "
+        "Stay in character. Keep replies under 80 words."
+    )
+
+def challenger_reply(challenger: AssistantAgent, transcript):
+    """Normal (pushback) reply from the challenger."""
+    ctx = "\n".join([f"{spk}: {msg}" for spk, msg in transcript[-6:]])
+    latest_user = next((m for spk, m in reversed(transcript) if spk.lower() == "user"), "")
+    prompt = (
+        f"Context so far:\n{ctx}\n\n"
+        f"User's latest message:\n{latest_user}\n\n"
+        "Reply IN CHARACTER as the assigned role with the specified pushback intensity. "
+        "Keep your message under 80 words."
+    )
+    return challenger.generate_reply(messages=[
+        {"role": "system", "content": challenger.system_message},
+        {"role": "user", "content": prompt},
+    ]).strip()
+
+def challenger_concede_message(role: str) -> str:
+    """What the challenger says when conceding after the Judge is convinced."""
+    return (
+        "Alright, you’ve made a clear case. I’ll agree to your request and move forward accordingly."
+        if role != "customer service rep"
+        else "You’re right—consider it approved. I’ll process this now."
+    )
+
 def judge_turn(transcript, api_key):
     """Judge with a stricter, more rational boost: requires substance + confidence."""
     llm_config = build_llm_config(api_key)
@@ -170,30 +210,6 @@ def judge_turn(transcript, api_key):
     data["_has_signal"] = bool(clear_ask or has_amount or has_timeline or has_boundary)
     return data
 
-def make_challenger_system(role: str, level: int) -> str:
-    tones = {1: "polite but firm", 3: "curt, slightly dismissive", 5: "sharply dismissive (still non-abusive)"}
-    style = tones.get(level, "curt")
-    return (
-        f"You are roleplaying as the USER's {role}. "
-        f"Your pushback intensity is {level}/5 and your tone is {style}. "
-        "Be realistic, never abusive, but you may be curt, dismissive, or subtly demeaning. "
-        "Stay in character. Keep replies under 80 words."
-    )
-
-def challenger_reply(challenger: AssistantAgent, transcript):
-    ctx = "\n".join([f"{spk}: {msg}" for spk, msg in transcript[-6:]])
-    latest_user = next((m for spk, m in reversed(transcript) if spk.lower() == "user"), "")
-    prompt = (
-        f"Context so far:\n{ctx}\n\n"
-        f"User's latest message:\n{latest_user}\n\n"
-        "Reply IN CHARACTER as the assigned role with the specified pushback intensity. "
-        "Keep your message under 80 words."
-    )
-    return challenger.generate_reply(messages=[
-        {"role": "system", "content": challenger.system_message},
-        {"role": "user", "content": prompt},
-    ]).strip()
-
 def evaluate_transcript(transcript, api_key):
     llm_config = build_llm_config(api_key)
     full_text = "\n".join([f"{spk}: {msg}" for spk, msg in transcript])
@@ -211,7 +227,7 @@ def evaluate_transcript(transcript, api_key):
             return json.loads(m.group(0)) if m else {"raw": txt}
     return {"coach": safe(coach_reply), "critic": safe(critic_reply)}
 
-# ---------------- STREAMLIT APP ----------------
+# -------------------- STREAMLIT APP --------------------
 st.set_page_config(page_title="AdvocateAI", page_icon="💬", layout="centered")
 st.title("AdvocateAI — Self-Advocacy Practice")
 
@@ -228,12 +244,12 @@ if "score" not in st.session_state: st.session_state.score = 0
 if "streak" not in st.session_state: st.session_state.streak = 0
 if "mode" not in st.session_state: st.session_state.mode = "regular"
 if "last_verdict" not in st.session_state: st.session_state.last_verdict = None
-if "convinced_win" not in st.session_state: st.session_state.convinced_win = False  # blocks input after win in both modes
+if "convinced_win" not in st.session_state: st.session_state.convinced_win = False  # blocks input after win in any mode
 
 api_key = st.text_input("OpenAI API Key", type="password", value=os.getenv("OPENAI_API_KEY",""))
 if api_key: os.environ["OPENAI_API_KEY"] = api_key
 
-# default role = boss (index=5)
+# Default role = boss
 role = st.selectbox(
     "Who should the Challenger roleplay as?",
     ["teenager","spouse","parent","sibling","peer","boss","customer service rep","roommate","friend","teacher","landlord","other"],
@@ -298,7 +314,7 @@ if in_game:
     st.progress(min(1.0, st.session_state.turns / max(1, st.session_state.max_turns)))
     st.caption(SCORE_RULES_TEXT)
 
-# Chat input form (disabled after win in any mode, or when game over)
+# Chat input form (disabled after win, or when game over)
 input_disabled = st.session_state.convinced_win or (in_game and st.session_state.get("game_over", False))
 with st.form("chat_form", clear_on_submit=True):
     user_msg = st.text_area(
@@ -311,52 +327,56 @@ with st.form("chat_form", clear_on_submit=True):
     submitted = st.form_submit_button("Send", disabled=input_disabled)
 
 if submitted and user_msg.strip():
+    # 1) append user message first
     st.session_state.transcript.append(("User", user_msg.strip()))
+
     if not api_key:
         st.warning("Please add your API key first.")
     elif st.session_state.challenger_agent is None:
         st.warning("Set the role to create the Challenger.")
     else:
-        # Challenger reply first
-        reply = challenger_reply(st.session_state.challenger_agent, st.session_state.transcript)
-        st.session_state.transcript.append(("Challenger", reply))
-
-        # Then Judge ALWAYS runs
+        # 2) Judge FIRST on the user's message (so we decide win before challenger replies)
         verdict = judge_turn(st.session_state.transcript, api_key)
         st.session_state.last_verdict = verdict
 
-        # Scoring and end conditions
-        if in_game and st.session_state.get("game_active", False) and not st.session_state.get("game_over", False):
-            # attempt bonuses
-            if verdict.get("_has_signal"): st.session_state.score += 1
-            if verdict.get("confidence", 0) >= 0.5: st.session_state.score += 2
-
-            if verdict.get("convinced", False):
+        # 3) If convinced -> challenger CONCEDES (no more pushback), end + block input
+        if verdict.get("convinced", False):
+            st.session_state.transcript.append(("Challenger", challenger_concede_message(st.session_state.challenger_role or role)))
+            if in_game and st.session_state.get("game_active", False) and not st.session_state.get("game_over", False):
+                # scoring for a win
+                if verdict.get("_has_signal"): st.session_state.score += 1
+                if verdict.get("confidence", 0) >= 0.5: st.session_state.score += 2
                 st.session_state.score += 10
                 st.session_state.streak = st.session_state.get("streak", 0) + 1
                 st.session_state.game_over = True
-                st.session_state.convinced_win = True  # block further input
-            else:
+            # block further input in any mode
+            st.session_state.convinced_win = True
+
+        else:
+            # 4) Otherwise, normal challenger pushback
+            reply = challenger_reply(st.session_state.challenger_agent, st.session_state.transcript)
+            st.session_state.transcript.append(("Challenger", reply))
+
+            # 5) In game mode, consume a turn and possibly end after 3 non-winning tries
+            if in_game and st.session_state.get("game_active", False) and not st.session_state.get("game_over", False):
+                if verdict.get("_has_signal"): st.session_state.score += 1
+                if verdict.get("confidence", 0) >= 0.5: st.session_state.score += 2
                 st.session_state.turns += 1
                 if st.session_state.turns >= st.session_state.max_turns:
                     st.session_state.streak = 0
                     st.session_state.game_over = True
 
-        # In regular mode, also block further input on win
-        if not in_game and verdict.get("convinced", False):
-            st.session_state.convinced_win = True
-
 # Judge section (always visible)
 st.subheader("Judge")
-_last = st.session_state.get("last_verdict")
-if _last:
-    if _last.get("convinced", False):
-        st.success(f"Convinced ✅ (confidence {_last.get('confidence',0):.2f}) — WIN!")
+_verdict = st.session_state.get("last_verdict")
+if _verdict:
+    if _verdict.get("convinced", False):
+        st.success(f"Convinced ✅ (confidence {_verdict.get('confidence',0):.2f}) — WIN!")
     else:
-        st.info(f"Not convinced yet (confidence {_last.get('confidence',0):.2f}). Keep going.")
-    if _last.get("why"):
-        st.caption(f"Why: {_last['why']}")
-    tips = _last.get("tips", [])
+        st.info(f"Not convinced yet (confidence {_verdict.get('confidence',0):.2f}). Keep going.")
+    if _verdict.get("why"):
+        st.caption(f"Why: {_verdict['why']}")
+    tips = _verdict.get("tips", [])
     if tips:
         st.markdown("**Try next:**")
         for t in tips:
@@ -369,7 +389,7 @@ st.subheader("Transcript")
 for spk, msg in st.session_state.transcript:
     st.markdown(f"**{spk}:** {msg}")
 
-# Evaluation + Reset
+# Evaluate + Reset
 c1, c2 = st.columns(2)
 with c1:
     if st.button("Evaluate"):
