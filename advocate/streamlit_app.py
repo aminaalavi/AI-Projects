@@ -228,7 +228,7 @@ st.set_page_config(page_title="AdvocateAI", page_icon="💬", layout="centered")
 st.title("AdvocateAI — Self-Advocacy Practice")
 
 # brief how-to
-st.info("Pick a role, type your ask, and send. Regular mode = unlimited turns; press Evaluate anytime. Game mode = 3 attempts; if the Judge is convinced, the Challenger concedes. Over time this helps you practice clearer, firmer self-advocacy.")
+st.info("Pick a role, type your ask, and send. Practice mode = unlimited turns; press Evaluate anytime. Game mode = 3 attempts; if the Judge is convinced, the Challenger concedes. Over time this helps you practice clearer, firmer self-advocacy.")
 
 # states
 if "transcript" not in st.session_state: st.session_state.transcript = []
@@ -259,6 +259,15 @@ if role == "other":
 # mode buttons
 m1, m2 = st.columns(2)
 with m1:
+     if st.button("🗨️ Practice mode"):
+        st.session_state.mode = "regular"
+        st.session_state.game_active = False
+        st.session_state.game_over = False
+        st.session_state.convinced_win = False
+        st.info("Practice mode: unlimited turns. Use Evaluate anytime.")
+         
+    
+with m2:
     if st.button("🎮 Game mode"):
         st.session_state.mode = "game"
         st.session_state.game_active = True
@@ -268,13 +277,7 @@ with m1:
         st.session_state.last_verdict = None
         st.session_state.convinced_win = False
         st.success("Game mode started. You have 3 attempts.")
-with m2:
-    if st.button("🗨️ Regular mode"):
-        st.session_state.mode = "regular"
-        st.session_state.game_active = False
-        st.session_state.game_over = False
-        st.session_state.convinced_win = False
-        st.info("Regular mode: unlimited turns. Use Evaluate anytime.")
+   
 
 # agent setup
 def ensure_agent(role: str, difficulty: int, api_key: str):
@@ -343,7 +346,7 @@ if submitted and user_msg.strip():
                 if st.session_state.turns >= st.session_state.max_turns:
                     st.session_state.game_over = True
         else:
-            # regular mode: NO judge, unlimited turns
+            # Practice mode: NO judge, unlimited turns
             reply = challenger_reply(st.session_state.challenger_agent, st.session_state.transcript)
             st.session_state.transcript.append(("Challenger", reply))
 
