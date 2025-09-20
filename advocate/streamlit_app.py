@@ -3,10 +3,10 @@ import json
 import streamlit as st
 from autogen import AssistantAgent
 
-# -------------------- CONFIG --------------------
+# =============== CONFIG ===============
 MODEL_NAME = "gpt-4o-mini"
 
-# -------------------- LLM SYSTEMS --------------------
+# =============== LLM SYSTEMS ===============
 def build_llm_config(api_key: str):
     return {"config_list":[{"model": MODEL_NAME, "api_key": api_key}], "temperature":0.3}
 
@@ -47,7 +47,7 @@ JUDGE_SYSTEM = (
     "}"
 )
 
-# -------------------- HELPERS (UI) --------------------
+# =============== UI HELPERS ===============
 def _score_bar(label: str, value: int | float):
     v = max(0, min(10, float(value)))
     st.metric(label, f"{int(v)}/10")
@@ -104,7 +104,7 @@ def render_critic(critic: dict):
         with c2: st.metric("Hedges", counts.get("hedges", 0))
         with c3: st.metric("Explicit asks", counts.get("explicit_asks", 0))
 
-# -------------------- CORE LOGIC --------------------
+# =============== CORE LOGIC ===============
 def make_challenger_system(role: str, level: int) -> str:
     tones = {1: "polite but firm", 3: "curt, slightly dismissive", 5: "sharply dismissive (still non-abusive)"}
     style = tones.get(level, "curt")
@@ -133,27 +133,22 @@ def challenger_reply(challenger: AssistantAgent, transcript):
 def challenger_concede_message(role: str) -> str:
     """What the challenger says when conceding after the Judge is convinced."""
     return (
-        "Alright, I agree."
+        "Alright, you’ve presented a clear case. I agree to your request and will proceed."
         if role != "customer service rep"
         else "You’re right—consider it approved. I’ll process this now."
     )
 
 def judge_turn(transcript, api_key):
     """
-    Judge with balanced strictness:
-    - Convinced if there's a boundary OR (ask + amount/timeline) OR (ask + brief reason),
-      AND model confidence is moderate.
+    Balanced strictness:
+    Convinced if there's a boundary OR (ask + amount/timeline) OR (ask + brief reason),
+    and model confidence is moderate.
     """
     llm_config = build_llm_config(api_key)
     judge = AssistantAgent(name="Judge", system_message=JUDGE_SYSTEM, llm_config=llm_config)
 
-    # recent context
     ctx = "\n".join([f"{spk}: {msg}" for spk, msg in transcript[-4:]])
-    prompt = (
-        "Decide if the Challenger would concede now based on this recent exchange.\n"
-        f"{ctx}\n"
-        "Return JSON only."
-    )
+    prompt = "Decide if the Challenger would concede now based on this recent exchange.\n" + ctx + "\nReturn JSON only."
     raw = judge.generate_reply(messages=[{"role":"user","content":prompt}])
 
     # parse JSON safely
@@ -195,10 +190,7 @@ def judge_turn(transcript, api_key):
 
     conf = float(data.get("confidence", 0) or 0)
 
-    # balanced thresholds (not too lenient, not too strict)
-    strong_substance = has_boundary or (clear_ask and (has_amount or has_timeline)) or (clear_ask and has_reason)
-    two_signals = sum([has_boundary, has_amount, has_timeline, has_reason, clear_ask]) >= 2
-
+    # thresholds (firmer than before, not too strict)
     if has_boundary and conf >= 0.58:
         data["convinced"] = True
         data["confidence"] = max(conf, 0.60)
@@ -208,12 +200,10 @@ def judge_turn(transcript, api_key):
     elif clear_ask and has_reason and conf >= 0.65:
         data["convinced"] = True
         data["confidence"] = max(conf, 0.67)
-    elif strong_substance and two_signals and conf >= 0.62:
+    elif sum([has_boundary, has_amount, has_timeline, has_reason, clear_ask]) >= 2 and conf >= 0.62:
         data["convinced"] = True
         data["confidence"] = max(conf, 0.64)
 
-    # attach a small flag for UI (kept for future use if needed)
-    data["_has_signal"] = bool(clear_ask or has_amount or has_timeline or has_boundary or has_reason)
     return data
 
 def evaluate_transcript(transcript, api_key):
@@ -233,14 +223,14 @@ def evaluate_transcript(transcript, api_key):
             return json.loads(m.group(0)) if m else {"raw": txt}
     return {"coach": safe(coach_reply), "critic": safe(critic_reply)}
 
-# -------------------- STREAMLIT APP --------------------
+# =============== APP ===============
 st.set_page_config(page_title="AdvocateAI", page_icon="💬", layout="centered")
 st.title("AdvocateAI — Self-Advocacy Practice")
 
-# very brief how-to
-st.info("How to use: pick a role, type your ask, and send. In Game mode you get 3 tries to convince the Challenger. Over time it trains you to be clearer, more assertive, and better at self-advocating.")
+# brief how-to
+st.info("Pick a role, type your ask, and send. Regular mode = unlimited turns; press Evaluate anytime. Game mode = 3 attempts; if the Judge is convinced, the Challenger concedes. Over time this helps you practice clearer, firmer self-advocacy.")
 
-# Init states
+# states
 if "transcript" not in st.session_state: st.session_state.transcript = []
 if "challenger_role" not in st.session_state: st.session_state.challenger_role = None
 if "challenger_agent" not in st.session_state: st.session_state.challenger_agent = None
@@ -251,12 +241,12 @@ if "turns" not in st.session_state: st.session_state.turns = 0
 if "max_turns" not in st.session_state: st.session_state.max_turns = 3
 if "mode" not in st.session_state: st.session_state.mode = "regular"
 if "last_verdict" not in st.session_state: st.session_state.last_verdict = None
-if "convinced_win" not in st.session_state: st.session_state.convinced_win = False  # blocks input after win in any mode
+if "convinced_win" not in st.session_state: st.session_state.convinced_win = False  # only used in game mode
 
 api_key = st.text_input("OpenAI API Key", type="password", value=os.getenv("OPENAI_API_KEY",""))
 if api_key: os.environ["OPENAI_API_KEY"] = api_key
 
-# Default role = boss
+# default role = boss
 role = st.selectbox(
     "Who should the Challenger roleplay as?",
     ["teenager","spouse","parent","sibling","peer","boss","customer service rep","roommate","friend","teacher","landlord","other"],
@@ -266,7 +256,7 @@ difficulty = st.slider("Difficulty (pushback level)", 1, 5, 3)
 if role == "other":
     role = st.text_input("Enter a custom role:", "").strip() or "boss"
 
-# Mode buttons
+# mode buttons
 m1, m2 = st.columns(2)
 with m1:
     if st.button("🎮 Game mode"):
@@ -284,9 +274,9 @@ with m2:
         st.session_state.game_active = False
         st.session_state.game_over = False
         st.session_state.convinced_win = False
-        st.info("Regular mode: free practice.")
+        st.info("Regular mode: unlimited turns. Use Evaluate anytime.")
 
-# Agent setup
+# agent setup
 def ensure_agent(role: str, difficulty: int, api_key: str):
     if not api_key:
         return
@@ -308,28 +298,26 @@ def ensure_agent(role: str, difficulty: int, api_key: str):
 
 ensure_agent(role, difficulty, api_key)
 
-# Game HUD
+# HUD (game only)
 in_game = (st.session_state.get("mode") == "game")
 if in_game:
     attempts_left = max(0, st.session_state.max_turns - st.session_state.turns)
-    cA, = st.columns(1)
-    with cA: st.metric("Attempts left", f"{attempts_left}/{st.session_state.max_turns}")
+    st.metric("Attempts left", f"{attempts_left}/{st.session_state.max_turns}")
     st.progress(min(1.0, st.session_state.turns / max(1, st.session_state.max_turns)))
 
-# Chat input form (disabled after win, or when game over)
-input_disabled = st.session_state.convinced_win or (in_game and st.session_state.get("game_over", False))
+# input form
+input_disabled = in_game and (st.session_state.convinced_win or st.session_state.get("game_over", False))
 with st.form("chat_form", clear_on_submit=True):
     user_msg = st.text_area(
         "Your message",
         height=110,
-        placeholder="State your ask / boundary (add specifics or a brief reason to win).",
+        placeholder="State your ask / boundary. Add specifics (amount/timeline) or a brief reason to win in Game mode.",
         disabled=input_disabled,
         key="chat_input"
     )
     submitted = st.form_submit_button("Send", disabled=input_disabled)
 
 if submitted and user_msg.strip():
-    # 1) append user message first
     st.session_state.transcript.append(("User", user_msg.strip()))
 
     if not api_key:
@@ -337,52 +325,51 @@ if submitted and user_msg.strip():
     elif st.session_state.challenger_agent is None:
         st.warning("Set the role to create the Challenger.")
     else:
-        # 2) Judge FIRST on the user's message (decide win before challenger replies)
-        verdict = judge_turn(st.session_state.transcript, api_key)
-        st.session_state.last_verdict = verdict
+        if in_game:
+            # judge first (game mode only)
+            verdict = judge_turn(st.session_state.transcript, api_key)
+            st.session_state.last_verdict = verdict
 
-        # 3) If convinced -> challenger CONCEDES (no more pushback), end + block input
-        if verdict.get("convinced", False):
-            st.session_state.transcript.append(("Challenger", challenger_concede_message(st.session_state.challenger_role or role)))
-            if in_game and st.session_state.get("game_active", False) and not st.session_state.get("game_over", False):
+            if verdict.get("convinced", False):
+                # immediate concession, end game, block input
+                st.session_state.transcript.append(("Challenger", challenger_concede_message(st.session_state.challenger_role or role)))
                 st.session_state.game_over = True
-            st.session_state.convinced_win = True  # block further input in any mode
-
-        else:
-            # 4) Otherwise, normal challenger pushback
-            reply = challenger_reply(st.session_state.challenger_agent, st.session_state.transcript)
-            st.session_state.transcript.append(("Challenger", reply))
-
-            # 5) In game mode, consume a turn and possibly end after 3 non-winning tries
-            if in_game and st.session_state.get("game_active", False) and not st.session_state.get("game_over", False):
+                st.session_state.convinced_win = True
+            else:
+                # normal pushback + consume a turn
+                reply = challenger_reply(st.session_state.challenger_agent, st.session_state.transcript)
+                st.session_state.transcript.append(("Challenger", reply))
                 st.session_state.turns += 1
                 if st.session_state.turns >= st.session_state.max_turns:
                     st.session_state.game_over = True
+        else:
+            # regular mode: NO judge, unlimited turns
+            reply = challenger_reply(st.session_state.challenger_agent, st.session_state.transcript)
+            st.session_state.transcript.append(("Challenger", reply))
 
-# Judge section (always visible)
-st.subheader("Judge")
-_verdict = st.session_state.get("last_verdict")
-if _verdict:
-    if _verdict.get("convinced", False):
-        st.success(f"Convinced ✅ (confidence {_verdict.get('confidence',0):.2f}) — WIN!")
-    else:
-        st.info(f"Not convinced yet (confidence {_verdict.get('confidence',0):.2f}). Keep going.")
-    if _verdict.get("why"):
-        st.caption(f"Why: {_verdict['why']}")
-    tips = _verdict.get("tips", [])
-    if tips:
-        st.markdown("**Try next:**")
-        for t in tips:
-            st.markdown(f"- {t}")
-else:
-    st.caption("No verdict yet — send a message to get a ruling.")
+# judge panel (game mode only)
+if in_game:
+    st.subheader("Judge")
+    _v = st.session_state.get("last_verdict")
+    if _v:
+        if _v.get("convinced", False):
+            st.success(f"Convinced ✅ (confidence {_v.get('confidence',0):.2f}) — WIN!")
+        else:
+            st.info(f"Not convinced yet (confidence {_v.get('confidence',0):.2f}). Keep going.")
+        if _v.get("why"):
+            st.caption(f"Why: {_v['why']}")
+        tips = _v.get("tips", [])
+        if tips:
+            st.markdown("**Try next:**")
+            for t in tips:
+                st.markdown(f"- {t}")
 
-# Transcript display
+# transcript
 st.subheader("Transcript")
 for spk, msg in st.session_state.transcript:
     st.markdown(f"**{spk}:** {msg}")
 
-# Evaluate + Reset
+# evaluate + reset
 c1, c2 = st.columns(2)
 with c1:
     if st.button("Evaluate"):
