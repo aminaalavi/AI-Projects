@@ -361,7 +361,6 @@ for i, (k, v) in enumerate(presets.items()):
 
 
 st.write("Type a message, press Send. Click Evaluate anytime for feedback.")
-
 if st.session_state.mode == "game":
     cX, cY = st.columns(2)
     with cX: st.metric("Score", st.session_state.score)
@@ -369,33 +368,29 @@ if st.session_state.mode == "game":
     st.caption(f"Turns: {st.session_state.turns}/{st.session_state.max_turns}")
     st.progress(min(1.0, st.session_state.turns / max(1, st.session_state.max_turns)))
 
-# show last judge verdict (if any)
-_verdict = st.session_state.get("last_verdict")
-if _verdict and st.session_state.mode == "game":
-    if _verdict.get("convinced", False):
-        st.success(f"Judge: convinced (confidence {_verdict.get('confidence',0):.2f})")
+    # fixed placeholder to keep verdict in one spot (prevents layout jumping)
+    verdict_box = st.empty()
+
+    # render last verdict (if any), always in the same place
+    _last = st.session_state.get("last_verdict")
+    if _last:
+        with verdict_box:
+            if _last.get("convinced", False):
+                st.success(f"Judge: convinced (confidence {_last.get('confidence',0):.2f})")
+            else:
+                st.info("Judge: not convinced yet.")
+            if _last.get("why"):
+                st.caption(f"Why: {_last['why']}")
+            _tips = _last.get("tips", [])
+            if _tips:
+                with st.expander("Try next"):
+                    for t in _tips:
+                        st.markdown(f"- {t}")
     else:
-        st.info("Judge: not convinced yet.")
-    if _verdict.get("why"):
-        st.caption(f"Why: {_verdict['why']}")
-    _tips = _verdict.get("tips", [])
-    if _tips:
-        with st.expander("Try next"):
-            for t in _tips:
-                st.markdown(f"- {t}")
+        # keep the box occupied so layout stays stable in game mode
+        with verdict_box:
+            st.caption(" ")
 
-
-
-
-# Clear pending chat input BEFORE rendering the widget
-if st.session_state.pop("__clear_chat_input", False):
-    st.session_state.chat_input = ""
-    
-
-
-
-with st.form("chat"):
-    # Disable only if we're in Game mode AND the game is over
     in_game = (st.session_state.get("mode", "regular") == "game")
     disabled = in_game and st.session_state.get("game_over", False)
 
@@ -408,58 +403,48 @@ with st.form("chat"):
     )
     submitted = st.form_submit_button("Send", disabled=disabled)
 
-    if submitted and user_msg.strip():
-        st.session_state.transcript.append(("User", user_msg.strip()))
-        if not api_key:
-            st.warning("Please add your API key first.")
-        elif st.session_state.challenger_agent is None:
-            st.warning("Set the role to create the Challenger.")
-        else:
-            # Challenger responds
-            reply = challenger_reply(st.session_state.challenger_agent, st.session_state.transcript)
-            st.session_state.transcript.append(("Challenger", reply))
+   # 🔁 REPLACE THIS WHOLE BLOCK
+if submitted and user_msg.strip():
+    st.session_state.transcript.append(("User", user_msg.strip()))
+    if not api_key:
+        st.warning("Please add your API key first.")
+    elif st.session_state.challenger_agent is None:
+        st.warning("Set the role to create the Challenger.")
+    else:
+        # Challenger responds
+        reply = challenger_reply(st.session_state.challenger_agent, st.session_state.transcript)
+        st.session_state.transcript.append(("Challenger", reply))
 
-            # Judge only in Game mode, while active and not over
-            if (
-                st.session_state.mode == "game"
-                and st.session_state.get("game_active", False)
-                and not st.session_state.get("game_over", False)
-            ):
-                st.session_state.turns += 1
-                verdict = judge_turn(st.session_state.transcript, api_key)
+        # Default: no verdict unless we actually judge (Game mode + active)
+        verdict = None
 
-                # Light scoring: +10 on win, +2 per turn if confidence ≥ 0.5
-                st.session_state.score += 2 if verdict.get("confidence", 0) >= 0.5 else 0
+        # Judge only in Game mode, while active and not over
+        if (
+            st.session_state.mode == "game"
+            and st.session_state.get("game_active", False)
+            and not st.session_state.get("game_over", False)
+        ):
+            st.session_state.turns += 1
+            verdict = judge_turn(st.session_state.transcript, api_key)
 
-                if verdict.get("convinced", False):
-                    st.success(f"You win! Judge: convinced (confidence {verdict.get('confidence',0):.2f}).")
-                    if verdict.get("why"):
-                        st.caption(f"Why: {verdict['why']}")
-                    st.session_state.score += 10
-                    st.session_state.streak = st.session_state.get("streak", 0) + 1
+            # Light scoring: +10 on win, +2 per turn if confidence ≥ 0.5
+            st.session_state.score += 2 if verdict.get("confidence", 0) >= 0.5 else 0
+
+            if verdict.get("convinced", False):
+                st.session_state.score += 10
+                st.session_state.streak = st.session_state.get("streak", 0) + 1
+                st.session_state.game_over = True
+            else:
+                # Lose if out of turns
+                if st.session_state.turns >= st.session_state.max_turns:
+                    st.session_state.streak = 0
                     st.session_state.game_over = True
-                    st.balloons()
-                else:
-                    st.info("Judge: not convinced yet.")
-                    if verdict.get("why"):
-                        st.caption(f"Why: {verdict['why']}")
-                    tips = verdict.get("tips", [])
-                    if tips:
-                        st.write("Try next:")
-                        for t in tips:
-                            st.markdown(f"- {t}")
-                    if st.session_state.turns >= st.session_state.max_turns:
-                        st.error("Out of turns. Game over.")
-                        st.session_state.streak = 0
-                        st.session_state.game_over = True
 
-        # remember verdict for next render
-        st.session_state.last_verdict = verdict if ('verdict' in locals()) else None
-        # clear the input on next render (no manual rerun)
+        # Store verdict for the fixed placeholder to render (or None in regular mode)
+        st.session_state.last_verdict = verdict
+
+        # Clear the input on next render (no manual rerun needed; Streamlit will rerun after submit)
         st.session_state.__clear_chat_input = True
-
-
-
 
 st.subheader("Transcript")
 for spk, msg in st.session_state.transcript:
