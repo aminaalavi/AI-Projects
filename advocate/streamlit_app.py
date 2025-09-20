@@ -1,13 +1,10 @@
 
-import os, json
+import os
+import json
 import streamlit as st
 from autogen import AssistantAgent
 
-# For streamlit--------------------------------------------------
-# ---------- PRETTY RENDER HELPERS ----------
-# import math
-# import streamlit as st
-
+# Pretty render helpers
 def _score_bar(label: str, value: int | float):
     v = max(0, min(10, float(value)))
     st.metric(label, f"{int(v)}/10")
@@ -23,20 +20,17 @@ def render_coach(coach: dict):
     tips   = coach.get("tips", []) or []
     exs    = coach.get("examples", []) or []
 
-    # Scores as metrics + progress bars
     cols = st.columns(4)
     order = ["Clarity", "Assertiveness", "Evidence", "Boundaries"]
     for i, k in enumerate(order):
         with cols[i]:
             _score_bar(k, scores.get(k, 0))
 
-    # Tips
     if tips:
         st.markdown("**Tips (try these next time):**")
         for t in tips:
             st.markdown(f"- {t}")
 
-    # Stronger phrasing examples
     if exs:
         st.markdown("**Stronger example phrases:**")
         for e in exs:
@@ -68,9 +62,6 @@ def render_critic(critic: dict):
         with c1: st.metric("Apologies", counts.get("apologies", 0))
         with c2: st.metric("Hedges", counts.get("hedges", 0))
         with c3: st.metric("Explicit asks", counts.get("explicit_asks", 0))
-
-#end of streamlit addition----------------------------------------------
-
 
 MODEL_NAME = "gpt-4o-mini"
 
@@ -118,7 +109,6 @@ def judge_turn(transcript, api_key):
     llm_config = build_llm_config(api_key)
     judge = AssistantAgent(name="Judge", system_message=JUDGE_SYSTEM, llm_config=llm_config)
 
-    # Last exchange focus: take last 4 lines for context
     ctx = "\n".join([f"{spk}: {msg}" for spk, msg in transcript[-4:]])
     prompt = (
         "Decide if the Challenger would concede now based on this recent exchange.\n"
@@ -128,38 +118,35 @@ def judge_turn(transcript, api_key):
     raw = judge.generate_reply(messages=[{"role":"user","content":prompt}])
     try:
         data = json.loads(raw.strip())
-    except:
+    except Exception:
         import re
         m = re.search(r"\{.*\}", raw, flags=re.S)
         data = json.loads(m.group(0)) if m else {"convinced": False, "confidence": 0.0, "why": "Parse error", "tips": []}
-    # Safety defaults
+
     data.setdefault("convinced", False)
     data.setdefault("confidence", 0.0)
     data.setdefault("why", "")
     data.setdefault("tips", [])
-    # --- make it easier: light heuristic on last user message ---
+
     last_user = ""
     for spk, m in reversed(transcript):
         if spk.lower() == "user":
             last_user = m.lower()
             break
-    
+
     keywords_ask = ["i want", "i need", "i would like", "i’m asking", "i am asking"]
     keywords_boundary = ["i won’t", "not acceptable", "that doesn’t work", "i can’t agree"]
-    # crude evidence: numbers, $, %, dates-ish
     has_evidence = any(ch.isdigit() for ch in last_user) or "$" in last_user or "%" in last_user
-    
+
     clear_ask = any(k in last_user for k in keywords_ask)
     clear_bound = any(k in last_user for k in keywords_boundary)
-    
-    # lower the bar: if there is any clear ask/boundary/evidence, boost outcome
+
     conf = float(data.get("confidence", 0) or 0)
     if (clear_ask or clear_bound or has_evidence) and conf >= 0.30:
         data["convinced"] = True
         data["confidence"] = max(conf, 0.55)
 
     return data
-
 
 def make_challenger_system(role: str, level: int) -> str:
     tones = {
@@ -175,9 +162,7 @@ def make_challenger_system(role: str, level: int) -> str:
         "Stay in character. Keep replies under 80 words."
     )
 
-
 def challenger_reply(challenger: AssistantAgent, transcript):
-    """Generate a Challenger reply based on transcript + role + difficulty."""
     ctx = "\n".join([f"{spk}: {msg}" for spk, msg in transcript[-6:]])
     latest_user = next((m for spk, m in reversed(transcript) if spk.lower() == "user"), "")
 
@@ -194,7 +179,6 @@ def challenger_reply(challenger: AssistantAgent, transcript):
         {"role": "user", "content": prompt},
     ]).strip()
 
-
 def evaluate_transcript(transcript, api_key):
     llm_config = build_llm_config(api_key)
     full_text = "\n".join([f"{spk}: {msg}" for spk, msg in transcript])
@@ -204,8 +188,9 @@ def evaluate_transcript(transcript, api_key):
     coach_reply = coach.generate_reply(messages=[{"role":"user","content":f"Transcript:\n{full_text}\n\nProvide JSON now."}])
     critic_reply = critic.generate_reply(messages=[{"role":"user","content":f"Critique ONLY USER lines:\n{user_text}\n\nProvide JSON now."}])
     def safe(txt):
-        try: return json.loads(txt.strip())
-        except:
+        try:
+            return json.loads(txt.strip())
+        except Exception:
             import re
             m = re.search(r"\{.*\}", txt, flags=re.S)
             return json.loads(m.group(0)) if m else {"raw": txt}
@@ -214,20 +199,17 @@ def evaluate_transcript(transcript, api_key):
 st.set_page_config(page_title="AdvocateAI", page_icon="💬", layout="centered")
 st.title("AdvocateAI — Self-Advocacy Practice")
 
+# Session state init
 if "transcript" not in st.session_state: st.session_state.transcript = []
 if "challenger_role" not in st.session_state: st.session_state.challenger_role = None
 if "challenger_agent" not in st.session_state: st.session_state.challenger_agent = None
 if "chat_input" not in st.session_state: st.session_state.chat_input = ""
-    
-
-# --- Game state for gamified version ---
 if "game_active" not in st.session_state: st.session_state.game_active = False
 if "game_over" not in st.session_state: st.session_state.game_over = False
 if "turns" not in st.session_state: st.session_state.turns = 0
-if "max_turns" not in st.session_state: st.session_state.max_turns = 3   # tweakable
+if "max_turns" not in st.session_state: st.session_state.max_turns = 3
 if "score" not in st.session_state: st.session_state.score = 0
 if "streak" not in st.session_state: st.session_state.streak = 0
-
 if "mode" not in st.session_state: st.session_state.mode = "regular"
 if "last_verdict" not in st.session_state: st.session_state.last_verdict = None
 
@@ -243,6 +225,7 @@ difficulty = st.slider("Difficulty (pushback level)", 1, 5, 3)
 
 if role == "other":
     role = st.text_input("Enter a custom role:", "").strip() or "peer"
+
 # Mode toggle buttons
 m1, m2 = st.columns(2)
 with m1:
@@ -263,10 +246,68 @@ with m2:
         st.session_state.game_over = False
         st.info("Regular mode: free practice. No turns, no scoring.")
 
+def ensure_agent(role: str, difficulty: int, api_key: str):
+    if not api_key:
+        return
+    if "challenger_agent" not in st.session_state:
+        st.session_state.challenger_agent = None
+    if "challenger_role" not in st.session_state:
+        st.session_state.challenger_role = None
+    if "challenger_difficulty" not in st.session_state:
+        st.session_state.challenger_difficulty = None
+    if "transcript" not in st.session_state:
+        st.session_state.transcript = []
 
+    changed_role = (st.session_state.challenger_role != role)
+    changed_diff = (st.session_state.challenger_difficulty != difficulty)
+    missing = st.session_state.challenger_agent is None
 
-# --- Game Controls ---
-# --- Game Controls (only in Game mode) ---
+    if changed_role or changed_diff or missing:
+        llm_config = build_llm_config(api_key)
+        st.session_state.challenger_agent = AssistantAgent(
+            name="Challenger",
+            system_message=make_challenger_system(role, difficulty),
+            llm_config=llm_config,
+        )
+        st.session_state.challenger_role = role
+        st.session_state.challenger_difficulty = difficulty
+        st.session_state.transcript = []
+
+ensure_agent(role, difficulty, api_key)
+
+# Scenario presets
+st.subheader("Scenario presets")
+presets = {
+    "Teenager party": {
+        "role": "teenager",
+        "first": "I don’t want you going to the party where there’s drinking."
+    },
+    "Customer refund": {
+        "role": "customer service rep",
+        "first": "I’d like a refund for the subscription that auto-renewed."
+    },
+    "Peer taking credit": {
+        "role": "peer",
+        "first": "Please stop presenting my work without attribution. I need co-credit."
+    },
+    "Boss scope creep": {
+        "role": "boss",
+        "first": "I can’t add this project without moving deadlines or dropping X. Let’s prioritize."
+    },
+}
+
+cols = st.columns(len(presets))
+for i, (k, v) in enumerate(presets.items()):
+    if cols[i].button(k):
+        ensure_agent(v["role"], difficulty, api_key)
+        st.session_state.transcript = [("User", v["first"])]
+        if st.session_state.challenger_agent:
+            reply = challenger_reply(st.session_state.challenger_agent, st.session_state.transcript)
+            st.session_state.transcript.append(("Challenger", reply))
+
+st.write("Type a message, press Send. Click Evaluate anytime for feedback.")
+
+# Game control buttons
 if st.session_state.mode == "game":
     c1, c2 = st.columns(2)
     with c1:
@@ -278,7 +319,6 @@ if st.session_state.mode == "game":
             st.session_state.score = 0
             st.session_state.streak = 0
             st.success("Game started! Convince the Challenger before turns run out.")
-
     with c2:
         if st.button("🔄 Reset Game"):
             st.session_state.game_active = False
@@ -289,7 +329,7 @@ if st.session_state.mode == "game":
             st.session_state.streak = 0
             st.info("Conversation reset.")
 
-# --- Input & Submit (Game + Regular) ---
+# Input and submission shared by both modes
 in_game = (st.session_state.get("mode", "regular") == "game")
 disabled = in_game and st.session_state.get("game_over", False)
 
@@ -318,7 +358,6 @@ if in_game:
         else:
             st.caption(" ")
 
-# one form for both modes so `submitted` always exists
 with st.form("chat_form", clear_on_submit=True):
     user_msg = st.text_area(
         "Your message",
@@ -355,7 +394,6 @@ if submitted and user_msg.strip():
 
         st.session_state.last_verdict = verdict
 
-
 st.subheader("Transcript")
 for spk, msg in st.session_state.transcript:
     st.markdown(f"**{spk}:** {msg}")
@@ -371,13 +409,10 @@ with c1:
             results = evaluate_transcript(st.session_state.transcript, api_key)
             coach = results.get("coach", {})
             critic = results.get("critic", {})
-            
-            # Pretty UI
             render_coach(coach)
-            st.markdown("---")
+            st.markdown("")
             render_critic(critic)
-            
-            # Optional: raw JSON in an expander
+
             with st.expander("Show raw JSON"):
                 st.code(json.dumps(results, indent=2), language="json")
 
