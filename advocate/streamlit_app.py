@@ -289,92 +289,21 @@ if st.session_state.mode == "game":
             st.session_state.streak = 0
             st.info("Conversation reset.")
 
+# --- Input & Submit (Game + Regular) ---
+in_game = (st.session_state.get("mode", "regular") == "game")
+disabled = in_game and st.session_state.get("game_over", False)
 
-
-
-
-def ensure_agent(role: str, difficulty: int, api_key: str):
-    """Create/recreate the Challenger agent when role or difficulty changes."""
-    if not api_key:
-        return
-
-    # Init state holders if missing
-    if "challenger_agent" not in st.session_state:
-        st.session_state.challenger_agent = None
-    if "challenger_role" not in st.session_state:
-        st.session_state.challenger_role = None
-    if "challenger_difficulty" not in st.session_state:
-        st.session_state.challenger_difficulty = None
-    if "transcript" not in st.session_state:
-        st.session_state.transcript = []
-
-    # Rebuild when role or difficulty changed, or agent missing
-    changed_role = (st.session_state.challenger_role != role)
-    changed_diff = (st.session_state.challenger_difficulty != difficulty)
-    missing = st.session_state.challenger_agent is None
-
-    if changed_role or changed_diff or missing:
-        llm_config = build_llm_config(api_key)
-        st.session_state.challenger_agent = AssistantAgent(
-            name="Challenger",
-            system_message=make_challenger_system(role, difficulty),
-            llm_config=llm_config,
-        )
-        st.session_state.challenger_role = role
-        st.session_state.challenger_difficulty = difficulty
-        st.session_state.transcript = []  # reset when persona intensity changes
-
-
-ensure_agent(role, difficulty, api_key)
-
-# Scenario presets
-st.subheader("Scenario presets")
-
-presets = {
-    "Teenager party": {
-        "role": "teenager",
-        "first": "I don’t want you going to the party where there’s drinking."
-    },
-    "Customer refund": {
-        "role": "customer service rep",
-        "first": "I’d like a refund for the subscription that auto-renewed."
-    },
-    "Peer taking credit": {
-        "role": "peer",
-        "first": "Please stop presenting my work without attribution. I need co-credit."
-    },
-    "Boss scope creep": {
-        "role": "boss",
-        "first": "I can’t add this project without moving deadlines or dropping X. Let’s prioritize."
-    },
-}
-
-cols = st.columns(len(presets))
-for i, (k, v) in enumerate(presets.items()):
-    if cols[i].button(k):
-        # Rebuild agent with preset role + current difficulty
-        ensure_agent(v["role"], difficulty, api_key)
-        st.session_state.transcript = [("User", v["first"])]
-        if st.session_state.challenger_agent:
-            reply = challenger_reply(st.session_state.challenger_agent, st.session_state.transcript)
-            st.session_state.transcript.append(("Challenger", reply))
-
-
-st.write("Type a message, press Send. Click Evaluate anytime for feedback.")
-if st.session_state.mode == "game":
+if in_game:
     cX, cY = st.columns(2)
     with cX: st.metric("Score", st.session_state.score)
     with cY: st.metric("Win streak", st.session_state.streak)
     st.caption(f"Turns: {st.session_state.turns}/{st.session_state.max_turns}")
     st.progress(min(1.0, st.session_state.turns / max(1, st.session_state.max_turns)))
 
-    # fixed placeholder to keep verdict in one spot (prevents layout jumping)
     verdict_box = st.empty()
-
-    # render last verdict (if any), always in the same place
     _last = st.session_state.get("last_verdict")
-    if _last:
-        with verdict_box:
+    with verdict_box:
+        if _last:
             if _last.get("convinced", False):
                 st.success(f"Judge: convinced (confidence {_last.get('confidence',0):.2f})")
             else:
@@ -386,24 +315,20 @@ if st.session_state.mode == "game":
                 with st.expander("Try next"):
                     for t in _tips:
                         st.markdown(f"- {t}")
-    else:
-        # keep the box occupied so layout stays stable in game mode
-        with verdict_box:
+        else:
             st.caption(" ")
 
-    in_game = (st.session_state.get("mode", "regular") == "game")
-    disabled = in_game and st.session_state.get("game_over", False)
-
+# one form for both modes so `submitted` always exists
+with st.form("chat_form", clear_on_submit=True):
     user_msg = st.text_area(
         "Your message",
         height=110,
         placeholder="State your ask / boundary...",
         disabled=disabled,
-        key="chat_input"  # lets us clear after send
+        key="chat_input"
     )
     submitted = st.form_submit_button("Send", disabled=disabled)
 
-   # 🔁 REPLACE THIS WHOLE BLOCK
 if submitted and user_msg.strip():
     st.session_state.transcript.append(("User", user_msg.strip()))
     if not api_key:
@@ -411,40 +336,25 @@ if submitted and user_msg.strip():
     elif st.session_state.challenger_agent is None:
         st.warning("Set the role to create the Challenger.")
     else:
-        # Challenger responds
         reply = challenger_reply(st.session_state.challenger_agent, st.session_state.transcript)
         st.session_state.transcript.append(("Challenger", reply))
 
-        # Default: no verdict unless we actually judge (Game mode + active)
         verdict = None
-
-        # Judge only in Game mode, while active and not over
-        if (
-            st.session_state.mode == "game"
-            and st.session_state.get("game_active", False)
-            and not st.session_state.get("game_over", False)
-        ):
+        if in_game and st.session_state.get("game_active", False) and not st.session_state.get("game_over", False):
             st.session_state.turns += 1
             verdict = judge_turn(st.session_state.transcript, api_key)
-
-            # Light scoring: +10 on win, +2 per turn if confidence ≥ 0.5
-            st.session_state.score += 2 if verdict.get("confidence", 0) >= 0.5 else 0
-
+            if verdict.get("confidence", 0) >= 0.5:
+                st.session_state.score += 2
             if verdict.get("convinced", False):
                 st.session_state.score += 10
                 st.session_state.streak = st.session_state.get("streak", 0) + 1
                 st.session_state.game_over = True
-            else:
-                # Lose if out of turns
-                if st.session_state.turns >= st.session_state.max_turns:
-                    st.session_state.streak = 0
-                    st.session_state.game_over = True
+            elif st.session_state.turns >= st.session_state.max_turns:
+                st.session_state.streak = 0
+                st.session_state.game_over = True
 
-        # Store verdict for the fixed placeholder to render (or None in regular mode)
         st.session_state.last_verdict = verdict
 
-        # Clear the input on next render (no manual rerun needed; Streamlit will rerun after submit)
-        st.session_state.__clear_chat_input = True
 
 st.subheader("Transcript")
 for spk, msg in st.session_state.transcript:
