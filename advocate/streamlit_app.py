@@ -133,7 +133,7 @@ def challenger_reply(challenger: AssistantAgent, transcript):
 def challenger_concede_message(role: str) -> str:
     """What the challenger says when conceding after the Judge is convinced."""
     return (
-        "Alright, you’ve presented a clear case. I agree to your request and will proceed."
+        "Alright, I agree."
         if role != "customer service rep"
         else "You’re right—consider it approved. I’ll process this now."
     )
