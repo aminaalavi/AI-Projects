@@ -224,8 +224,8 @@ def evaluate_transcript(transcript, api_key):
     return {"coach": safe(coach_reply), "critic": safe(critic_reply)}
 
 # =============== APP ===============
-st.set_page_config(page_title="AdvocateAI", page_icon="💬", layout="centered")
-st.title("AdvocateAI — Self-Advocacy Practice")
+st.set_page_config(page_title="AdvocateHer", page_icon="💬", layout="centered")
+st.title("AdvocateAI — Self-Advocacy at Woek")
 
 # brief how-to
 st.info("Pick a role, type your ask, and send. Practice mode = unlimited turns; press Evaluate anytime. Game mode = 3 attempts; if the Judge is convinced, the Challenger concedes. Over time this helps you practice clearer, firmer self-advocacy.")
@@ -249,7 +249,7 @@ if api_key: os.environ["OPENAI_API_KEY"] = api_key
 # default role = boss
 role = st.selectbox(
     "Who should the Challenger roleplay as?",
-    ["teenager","spouse","parent","sibling","peer","boss","customer service rep","roommate","friend","teacher","landlord","other"],
+    ["human resource manager","boss","colleague"],
     index=5
 )
 difficulty = st.slider("Difficulty (pushback level)", 1, 5, 3)
