@@ -249,8 +249,8 @@ if api_key: os.environ["OPENAI_API_KEY"] = api_key
 # default role = boss
 role = st.selectbox(
     "Who should the Challenger roleplay as?",
-    ["human resource manager","boss","colleague"],
-    index=5
+    ["human resource manager", "boss", "colleague"],
+    index=2  # 'boss'
 )
 difficulty = st.slider("Difficulty (pushback level)", 1, 5, 3)
 if role == "other":
