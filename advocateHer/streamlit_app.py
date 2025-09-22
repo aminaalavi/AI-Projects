@@ -225,7 +225,7 @@ def evaluate_transcript(transcript, api_key):
 
 # =============== APP ===============
 st.set_page_config(page_title="AdvocateHer", page_icon="💬", layout="centered")
-st.title("AdvocateAI — Self-Advocacy at Woek")
+st.title("AdvocateHer — Self-Advocacy at Work")
 
 # brief how-to
 st.info("Pick a role, type your ask, and send. Practice mode = unlimited turns; press Evaluate anytime. Game mode = 3 attempts; if the Judge is convinced, the Challenger concedes. Over time this helps you practice clearer, firmer self-advocacy.")
