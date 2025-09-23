@@ -1,6 +1,7 @@
 \#AI Project: AdvocateHer — Practice how to advocate for yourself (AG2)
 
-
+To run the app use the link and add your Open API key:
+https://ai-projects-nhdgqjk9rfrfgs7oktppth.streamlit.app/
 
 Building Gen AI-powered agents that collaborate to help people become better at advocating for themselves. Combination of colab and streamlit UI.
 
