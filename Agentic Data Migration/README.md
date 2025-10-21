@@ -1,58 +1,45 @@
-\#AI Project: Debating Alpha Agents — Investment Portfolio Construction (AG2)
+# 🧠 Hybrid Data Migration with LangGraph Agents
 
+This project demonstrates an **intelligent, end-to-end data migration pipeline** that combines:
+- **Agents (LLMs via LangGraph & LangChain)** for reasoning, mapping, and narration  
+- **Python** for deterministic execution, validation, and reporting  
 
+It automates schema reading, mapping generation, SQL creation, execution, and validation — all orchestrated through a hybrid LangGraph workflow.
 
-Building AI-powered agents that debate like a team of analysts—all in Google Colab.
+---
 
+## 🤖 Agents Used
 
+| Agent | Role | Description |
+|--------|------|-------------|
+| 🧱 **Schema Agent** | `node_schema` | Reads both source and target database schemas and captures table structures. |
+| 🗺️ **Mapping Agent** | `node_mapplan` | Uses LLM to propose JSON-based column mappings between source and target tables; falls back to deterministic heuristics when no API key is available. |
+| 🧮 **Planner Agent** | `node_plan` | Converts mappings into a deterministic execution plan (CREATE, TRANSFER, VALIDATE, CHECKSUM). |
+| 🧩 **SQL Generator Agent** | `node_sqlgen` | Produces executable SQL scripts from the plan, including derived fields and type inference. |
+| ⚙️ **Executor Agent** | `node_execute` | Executes SQL scripts, logs actions, and records any errors during migration. |
+| ✅ **Validation Agent** | `node_validate` | Verifies migration accuracy using row counts and checksum comparisons. |
+| 🔁 **Remediation Agent** | `node_remediate` | If validation or execution fails, uses the LLM to patch the mapping and retry once. |
+| 🗣️ **Narration Agent** | `node_narrate` | Summarizes the entire migration in plain English, including results, errors, and overall status. |
 
-I used AG2 (formerly AutoGen) to build specialized agents that collaborate and then debate before producing a BUY/SELL/HOLD decision. Tools fetch facts first; the debate runs on those facts for stability and reproducibility.
+Each agent is represented as a **node** in the LangGraph workflow, passing structured state (`MigState`) between stages.
 
+---
 
+## 🧩 Architecture Overview
 
-Agents in Action
+**Workflow Stages:**
 
-🔹 Valuation Agent — annualized return \& volatility from historical prices
+| Stage | Description |
+|-------|--------------|
+| `schema` | Read both DB schemas |
+| `mapplan` | LLM proposes mapping JSON (fallback to heuristics) |
+| `plan` | Generate deterministic execution plan |
+| `sqlgen` | Generate SQL scripts |
+| `exec` | Execute SQL (with error capture) |
+| `validate` | Compare counts and checksums |
+| `remediate` | Retry failed migrations using LLM |
+| `narrate` | Generate a natural-language summary |
 
-🔹 Sentiment Agent — tone \& risks from news + SEC filings
+---
 
-🔹 Fundamental Agent — targeted 10-K/10-Q snippets via a tiny RAG
-
-🔹 Coordinator — synthesizes a final decision as clean JSON
-
-
-
-What’s special
-
-• Facts are gathered outside the debate → agents argue from the same ground truth
-
-• Tools are paused during the debate → fewer hallucinated calls
-
-• Outputs are parseable JSON → easy to plug into downstream notebooks
-
-• Fully reproducible in Colab—add your API key and run
-
-
-
-Inspiration \& Paper
-
-Inspired by and builds on: AlphaAgents: Large Language Model based Multi-Agents for Equity Portfolio Constructions
-
-arXiv: https://arxiv.org/abs/2508.11152
-
-
-
-Citation (arXiv)
-
-Zhao, T., Lyu, J., Jones, S., Garber, H., Pasquali, S., \& Mehta, D. (2025). AlphaAgents: Large Language Model based Multi-Agents for Equity Portfolio Constructions. arXiv:2508.11152. https://doi.org/10.48550/arXiv.2508.11152
-
-
-
-Educational use only, not financial advice.
-
-Have ideas for other finance or research workflows with multi-agent debates? Let’s connect.
-
-
-
-\#AI #AG2 #AutoGen #MultiAgent #FinanceAI #GPT4o #Colab #InvestmentResearch #OpenSource #arXiv
 
