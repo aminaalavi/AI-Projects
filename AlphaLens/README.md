@@ -1,58 +1,29 @@
-\#AI Project: Debating Alpha Agents — Investment Portfolio Construction (AG2)
+#AlphaLens Earnings Pack
 
+Automated multi-agent system for generating portfolio-ready earnings analysis. AlphaLens transforms scattered financial data, SEC filings, consensus estimates, and transcripts into a polished, markdown-based Earnings Pack ready for PM briefings or investment committee decks.
 
+🎯 ##What It Does
+###AlphaLens automates a complete sell-side research workflow:
+1️⃣ Research Agent	Combines SEC / IR filings and Street consensus	“Pre-Call Brief”
+2️⃣ Analyst Agent	Builds post-call deltas, scenarios, and risks	“Post-Call Analysis”
+3️⃣ Chart Maker Agent	Pulls last 90-day price history via Yahoo Finance	Price Trend Chart
+4️⃣ Packaging Agent	Merges everything into a professional markdown report	📈 Earnings Pack (Markdown + inline chart)
 
-Building AI-powered agents that debate like a team of analysts—all in Google Colab.
+The result is a portfolio-manager-grade summary, not a chatbot dump. You get structured sections: Guidance vs Consensus, Scenario Analysis, Top 5 Key Risks, and a clean inline chart.
 
+💼 ##Why It Matters
+Investment teams spend hours manually building pre- and post-call decks. AlphaLens replaces that grunt work with a transparent, auditable pipeline:
+Pulls objective disclosures (10-Qs, transcripts)
+Cross-checks with Street expectations
+Auto-formats key numbers, risks, and guidance deltas
+Outputs in Markdown for easy sharing to Notion, Slack, or IR notes
 
+🧩 ##Agent Architecture
+###Each module can be run independently or chained via the orchestrator:
+research_agent()  →  analyst_agent()  →  chart_maker_agent()  →  earnings_packaging_agent()
 
-I used AG2 (formerly AutoGen) to build specialized agents that collaborate and then debate before producing a BUY/SELL/HOLD decision. Tools fetch facts first; the debate runs on those facts for stability and reproducibility.
-
-
-
-Agents in Action
-
-🔹 Valuation Agent — annualized return \& volatility from historical prices
-
-🔹 Sentiment Agent — tone \& risks from news + SEC filings
-
-🔹 Fundamental Agent — targeted 10-K/10-Q snippets via a tiny RAG
-
-🔹 Coordinator — synthesizes a final decision as clean JSON
-
-
-
-What’s special
-
-• Facts are gathered outside the debate → agents argue from the same ground truth
-
-• Tools are paused during the debate → fewer hallucinated calls
-
-• Outputs are parseable JSON → easy to plug into downstream notebooks
-
-• Fully reproducible in Colab—add your API key and run
-
-
-
-Inspiration \& Paper
-
-Inspired by and builds on: AlphaAgents: Large Language Model based Multi-Agents for Equity Portfolio Constructions
-
-arXiv: https://arxiv.org/abs/2508.11152
-
-
-
-Citation (arXiv)
-
-Zhao, T., Lyu, J., Jones, S., Garber, H., Pasquali, S., \& Mehta, D. (2025). AlphaAgents: Large Language Model based Multi-Agents for Equity Portfolio Constructions. arXiv:2508.11152. https://doi.org/10.48550/arXiv.2508.11152
-
-
-
-Educational use only, not financial advice.
-
-Have ideas for other finance or research workflows with multi-agent debates? Let’s connect.
-
-
-
-\#AI #AG2 #AutoGen #MultiAgent #FinanceAI #GPT4o #Colab #InvestmentResearch #OpenSource #arXiv
-
+##Agents Overview
+Research Agent: Summarizes management tone + Street consensus	
+Analyst Agent:	Compares KPIs, builds Bull/Base/Bear scenarios	
+Chart Maker Agent:	Generates 90-day price trend chart 
+Earnings packaging Agent:	Combines and beautifies all content	
