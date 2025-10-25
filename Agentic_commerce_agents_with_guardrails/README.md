@@ -24,7 +24,4 @@ The agents involved include:
 👉 The saved example run shows a case where **the guardrail fails**, meaning the transaction is **blocked before payment** — demonstrating how the system prevents untrustworthy or unsafe operations.  
 Some modules (like web search and transactions) are **simulated** for demonstration purposes.
 
----
 
-## 1. Environment Setup
-This cell installs dependencies, loads API keys (OpenAI, Tavily), and initializes the session for the multi-agent orchestration.
