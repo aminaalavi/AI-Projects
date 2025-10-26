@@ -1,6 +1,6 @@
 ## 🧩 Overview — Agentic Commerce Multi-Agent System
 
-This notebook demonstrates an **agentic commerce pipeline** — a simulated multi-agent system that automates product discovery, pricing, content generation, supervision, and transaction validation with trust at its core.  
+This notebook demonstrates an **agentic commerce pipeline**, a simulated multi-agent system that automates product discovery, pricing, content generation, supervision, and transaction validation with trust at its core.  
 
 It showcases how **AI agents collaborate** to plan, optimize, and execute a commerce flow end-to-end while using **guardrails** to ensure safety, transparency, and trust.  
 
@@ -21,7 +21,7 @@ The agents involved include:
 - **Checkout Simulator** – mimics a checkout and shows if the process succeeds  
 - **Trust Guardrails Agent** – checks ethical and budgetary consistency  
 
-👉 The saved example run shows a case where **the guardrail fails**, meaning the transaction is **blocked before payment** — demonstrating how the system prevents untrustworthy or unsafe operations.  
+👉 The saved example run shows a case where **the guardrail fails**, meaning the transaction is **blocked before payment**, demonstrating how the system prevents untrustworthy or unsafe operations.  
 Some modules (like web search and transactions) are **simulated** for demonstration purposes.
 
 
