@@ -7,7 +7,7 @@ AlphaLens transforms scattered financial data — SEC filings, consensus estimat
 
 ## 🎯 What It Does
 
-AlphaLens automates a complete **sell-side research workflow**:
+AlphaLens automates a complete **research workflow**:
 
 1. **Research Agent** — Combines SEC / IR filings and Street consensus → *Pre-Call Brief*  
 2. **Analyst Agent** — Builds post-call deltas, scenarios, and risks → *Post-Call Analysis*  
