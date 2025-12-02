@@ -3,4 +3,6 @@ openai>=1.42.0
 autogen==0.7.6
 tiktoken>=0.7.0
 certifi>=2024.7.4
+aisuite[openai]>=0.1.0
+
 
