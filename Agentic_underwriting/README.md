@@ -1,23 +1,63 @@
-**AI Project: Agentic Swarm - Investment Research(AG2)**
+# Multi-Agent Underwriting & Investment Memo Generator
 
-Building AI powered agents that think like an analyst, straight from Google Colab!
+A **multi-agent system** that automates the first draft of investment underwriting for **private credit, private equity, and hedge funds**.
 
-In this project, I used AG2 (formerly AutoGen) to create a swarm of intelligent agents that collaborate to perform real-time investment research. Each agent plays a specialized role — gathering data, evaluating sentiment, estimating valuation, and more, all orchestrated automatically using GPT-4o.
+The system assembles a synthetic deal team that produces a structured **Investment Committee memo** in minutes, allowing humans to focus on judgment and decision-making.
 
-Agents in Action:
-🔹 Financials Agent – Extracts key metrics like revenue growth & P/E ratios
-🔹 Sentiment Agent – Analyzes live headlines via Yahoo Finance
-🔹 Valuation Agent – Assesses fair value using real data
-🔹 Risk Agent – Flags red flags like volatility & sector risks
-🔹 Summary Agent – Compiles a full investment brief
-🔹 Reporting Agent – Generates visual stock charts right inside the notebook
+---
 
-Built fully in Google Colab for easy replication. Just plug in your API key and start analyzing. 
-The functions in this notebook  are simplified examples meant to illustrate how each agent interacts with external data. In real world, these functions would be significantly more complex
+## What It Does
 
-Got other use cases for multi-agent AI swarms? Let’s connect and brainstorm!
-📌 **LinkedIn:** [Amina Alavi](https://www.linkedin.com/in/amina-alavi/)
+Given a public company ticker, the system:
 
-**Huge thanks to the AG2 community and their robust GitHub repo** ([AG2 GitHub](https://github.com/ag2ai/ag2/tree/main)) for pushing the boundaries of AI! 
+* Gathers public company information
+* Builds an underwriting and business overview
+* Analyzes financial and credit characteristics
+* Assesses qualitative and macro risks
+* Reviews capital structure and lender protections
+* Produces a complete **IC-ready investment memo**
 
-#AI #AG2 #AutoGen #SwarmAgents #GPT4o #FinanceAI #Colab #InvestmentTools #OpenAI
+---
+
+## Underwriting Agents
+
+* **Research Agent** – filings, transcripts, public disclosures
+* **Financial Agent** – growth, margins, leverage, liquidity
+* **Qualitative Risk Agent** – sector, macro, cost pressure
+* **Structure & Covenants Agent** – debt terms and protections
+* **Chart Agent** – recent price trend for market context
+* **Coordinator Agent** – synthesizes analysis and recommendation
+* **Memo Packaging Agent** – formats Markdown and Word memos
+
+---
+
+## Outputs
+
+* Structured Investment Committee memo (Markdown)
+* Formatted Word memo
+* Embedded market reference chart
+
+---
+
+## Why Multi-Agent Underwriting?
+
+Most underwriting work is **repeatable and pattern-based**.
+This system automates roughly **60–70% of the drafting process**, shortening underwriting cycles while improving consistency.
+
+Humans stay in the loop where judgment matters most.
+
+---
+
+## Intended Use
+
+* Educational and research purposes
+* Deal screening and memo drafting
+* Investment analysis workflows
+
+Not intended for automated investment decisions.
+
+---
+
+## Tags
+
+#AI #MultiAgent #FinanceAI #InvestmentResearch #PrivateCredit #PrivateEquity #HedgeFunds #Underwriting
