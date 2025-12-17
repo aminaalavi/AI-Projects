@@ -1,4 +1,4 @@
-\# Shadow Investment Committee (Shadow IC)
+# Shadow Investment Committee (Shadow IC)
 
 
 
