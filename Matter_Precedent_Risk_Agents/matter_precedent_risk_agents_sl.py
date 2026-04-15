@@ -918,11 +918,11 @@ Rules:
         }
 
 
-st.set_page_config(page_title="IC Shadow Agents", page_icon="📊", layout="wide")
-st.title("IC Shadow Agents – Shadow Investment Committee Simulator")
+st.set_page_config(page_title="Legal Precedent Agents", page_icon="📊", layout="wide")
+st.title("Legal Precedent Stress-Test Agents")
 
 st.info(
-    "Upload or paste an IC memo, set the deal name and number of rounds, and generate a multi-role Shadow IC debate plus a structured challenge checklist."
+    "Upload or paste a matter memo, set the matter name and number of rounds, and generate a multi-agent precedent stress-test with internal precedents, external context, and a final memo."
 )
 
 if "discussion" not in st.session_state:
