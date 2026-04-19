@@ -990,7 +990,7 @@ with col_left:
             placeholder="Paste the full Investment Committee memo here...",
         )
 
-run_button = st.button("Run Shadow IC")
+run_button = st.button("Run Risk Agents")
 
 if run_button:
     if not api_key:
