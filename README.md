@@ -13,6 +13,7 @@ Welcome to my AI project portfolio! Here, you'll find a collection of my AI expe
 - [Project 8: Agentic Commerce with Guardrails - A multi-agent System](Agentic_commerce_agents_with_guardrails/README.md)
 - [Project 9: Multi-Agent Underwriting & Investment Memo Generator](Agentic_underwriting/README.md)
 - [Project 10: Multi-Agent Shadow Investment Committee (Shadow IC)](investment_committee_shadow_agents/README.md)
+- [Project 11: Legal Precedent Stress-Test Agents](Matter_Precedent_Risk_Agents/README.md)
 
 
 
